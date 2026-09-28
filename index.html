@@ -13,6 +13,7 @@
 .icard{background:var(--surface);border:1px solid var(--border);padding:22px 24px;margin-bottom:14px}.icols{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.irow{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px;font-family:'Space Mono',monospace;font-size:9px}.irow .n{color:#8a9ab8}.irow .v{font-weight:700}.irow .na{color:#2a3a58}@media(max-width:900px){.icols{grid-template-columns:1fr}}
 .inote{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:'Space Mono',monospace;font-size:8px;line-height:1.7;color:var(--text-dim)}.footer a{color:inherit}
 .zbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px}.zbtns{display:flex;gap:4px;flex-wrap:wrap}.zbtns button{background:transparent;border:1px solid var(--border);color:#8a9ab8;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:5px 10px;cursor:pointer}.zbtns button:hover{border-color:#2a4a6a;color:#c8d4e8}.zbtns button.on{border-color:#00d4ff;color:#00d4ff}.zrange{font-family:'Space Mono',monospace;font-size:9px;color:#8a9ab8;letter-spacing:1px}.zhint{font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim);margin-bottom:12px}
+.heat{position:relative;user-select:none;-webkit-user-select:none}.heat canvas{display:block;width:100%;cursor:crosshair;touch-action:pan-y}.htip{position:absolute;pointer-events:none;display:none;background:#0a1220;border:1px solid #1a2a4a;padding:10px 12px;font-family:'Space Mono',monospace;font-size:9px;color:#c8d4e8;line-height:1.7;white-space:nowrap;z-index:2}.htip b{font-weight:700}
 </style>
 </head>
 <body>
@@ -37,6 +38,8 @@
   <div style="position:relative;height:320px;"><canvas id="priceChart"></canvas></div>
   <div class="csub"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);">VALUATION Z-SCORE · AGGREGATE OF AGGREGATES</div></div>
   <div style="position:relative;height:190px;"><canvas id="zChart"></canvas></div>
+  <div class="csub"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);">INDICATOR HEATMAP · Z-SCORE BY INDICATOR</div></div>
+  <div class="heat" id="heat"><canvas id="heatCanvas"></canvas><div class="htip" id="htip"></div></div>
 </div>
 <div class="footer"><span>PERSONAL, NON-COMMERCIAL PROJECT · NOT INVESTMENT ADVICE · DATA: <a href="https://coinmetrics.io/community-network-data/" target="_blank" rel="noopener">COIN METRICS</a> (CC BY-NC 4.0) · <a href="https://bgeometrics.com/" target="_blank" rel="noopener">BGEOMETRICS</a> · <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener">ALTERNATIVE.ME</a></span><span id="ftr"></span></div>
 </div>
@@ -101,11 +104,12 @@ async function render(){
     zoom:{wheel:{enabled:true,modifierKey:'ctrl'},pinch:{enabled:true},drag:{enabled:!TOUCH,backgroundColor:'rgba(0,212,255,0.08)',borderColor:'rgba(0,212,255,0.5)',borderWidth:1},mode:'x',onZoomComplete:({chart})=>syncFrom(chart)},
     pan:{enabled:true,mode:'x',modifierKey:TOUCH?null:'shift',onPanComplete:({chart})=>syncFrom(chart)}};
   const ptR=c=>{const s=c.chart.scales.x;return s&&s.max-s.min<=120?2:0;};
-  const CHARTS=[];
+  const CHARTS=[];let VIEW={a:0,b:N-1},heat=null;
   function applyRange(min,max,src){
     const full=min==null;
     CHARTS.forEach(c=>{if(c===src)return;c.options.scales.x.min=full?undefined:min;c.options.scales.x.max=full?undefined:max;c.update('none');});
     const a=full?0:Math.max(0,Math.round(min)),b=full?N-1:Math.min(N-1,Math.round(max));
+    VIEW={a,b};if(heat)heat.draw();
     document.getElementById('zrange').textContent=LABELS[a]+' → '+LABELS[b]+' · '+(b-a+1).toLocaleString()+' days';
   }
   function syncFrom(chart){
@@ -133,6 +137,67 @@ async function render(){
   CHARTS.forEach(c=>{c.canvas.style.touchAction='pan-y';});
   CHARTS.forEach(c=>c.canvas.addEventListener('dblclick',()=>document.querySelector('#zbtns button[data-d="0"]').click()));
   document.getElementById('zhint').textContent=TOUCH?'Pinch to zoom · drag to pan · tap a preset to jump':'Drag to zoom · Shift+drag to pan · Ctrl/pinch+scroll to zoom · double-click to reset';
+  // INDICATOR HEATMAP — one row per indicator, one column per pixel of the visible range
+  heat=(()=>{
+    const SHORT={mvrv_z:'MVRV Z',aviv:'AVIV',thermocap:'Thermocap',nupl:'NUPL',rhodl:'RHODL',price_tools:'CVDD/TP',sth_sopr:'STH-SOPR',power_law:'Power Law',sharpe_52w:'Sharpe 52W',rsi_monthly:'RSI 1M',days_higher:'Days High',beam:'BEAM',rainbow:'Rainbow',fear_greed:'F&G'};
+    const RH=innerWidth<600?11:13,GAP=6;
+    const rows=[{label:'COMPOSITE',full:'Composite Z-Score',z:DATA.z,bold:true}];
+    ['fundamental','technical','sentiment'].forEach(c=>{
+      rows.push({gap:true});
+      DATA.indicators.filter(x=>x.category===c).forEach(x=>rows.push({label:SHORT[x.key]||x.label,full:x.label+' · '+c,z:DATA.indicator_z[x.key]}));
+    });
+    let y=0;rows.forEach(r=>{r.y=y;y+=r.gap?GAP:RH;});
+    const H=y,wrap=document.getElementById('heat'),cv=document.getElementById('heatCanvas'),ctx=cv.getContext('2d'),tip=document.getElementById('htip');
+    let sel=null;
+    const area=()=>{const ca=CHARTS[0].chartArea;return{l:ca.left,r:ca.right};};
+    const idxAt=x=>{const {l,r}=area();return VIEW.a+Math.floor((x-l)/(r-l)*(VIEW.b-VIEW.a+1));};
+    function draw(){
+      const W=wrap.clientWidth,dpr=devicePixelRatio||1;
+      cv.width=W*dpr;cv.height=H*dpr;cv.style.height=H+'px';
+      ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+      const {l,r}=area(),pw=Math.max(1,Math.round(r-l)),span=VIEW.b-VIEW.a+1;
+      ctx.font="8px 'Space Mono',monospace";ctx.textBaseline='middle';ctx.textAlign='right';
+      rows.forEach(row=>{
+        if(row.gap)return;
+        ctx.fillStyle=row.bold?'#c8d4e8':'#6a7a98';ctx.fillText(row.label,l-8,row.y+RH/2);
+        ctx.fillStyle='#0d1830';ctx.fillRect(l,row.y,pw,RH-1);
+        const cols=Math.min(pw,span);
+        for(let c=0;c<cols;c++){
+          const i0=VIEW.a+Math.floor(c*span/cols),i1=VIEW.a+Math.floor((c+1)*span/cols);
+          let s=0,n=0;for(let i=i0;i<i1;i++){const v=row.z[i];if(v!=null){s+=v;n++;}}
+          if(!n)continue;
+          const x0=l+c*pw/cols,x1=l+(c+1)*pw/cols;
+          ctx.fillStyle=zColor(s/n,1);ctx.fillRect(Math.floor(x0),row.y,Math.ceil(x1)-Math.floor(x0),RH-1);
+        }
+      });
+      if(sel){ctx.fillStyle='rgba(0,212,255,0.12)';ctx.strokeStyle='rgba(0,212,255,0.6)';const x=Math.min(sel.x0,sel.x1),w=Math.abs(sel.x1-sel.x0);ctx.fillRect(x,0,w,H);ctx.strokeRect(x+.5,.5,w,H-1);}
+    }
+    function hover(e){
+      const b=cv.getBoundingClientRect(),x=e.clientX-b.left,yy=e.clientY-b.top,{l,r}=area();
+      const row=rows.find(o=>!o.gap&&yy>=o.y&&yy<o.y+RH);
+      if(!row||x<l||x>r){tip.style.display='none';return;}
+      const i=Math.min(VIEW.b,Math.max(VIEW.a,idxAt(x))),v=row.z[i];
+      tip.innerHTML=`<b>${LABELS[i]}</b><br>${row.full}<br>Z-Score: <b style="color:${v==null?'#6a7a98':zColor(v)}">${v==null?'n/a':v.toFixed(2)}</b>${v==null?'':'<br>Signal: '+signal(v).label}`;
+      tip.style.display='block';
+      const tw=tip.offsetWidth;tip.style.left=(x+14+tw>b.width?x-14-tw:x+14)+'px';tip.style.top=Math.max(0,yy-20)+'px';
+    }
+    cv.addEventListener('mousemove',e=>{hover(e);if(sel){sel.x1=e.clientX-cv.getBoundingClientRect().left;draw();}});
+    cv.addEventListener('mouseleave',()=>{tip.style.display='none';});
+    cv.addEventListener('mousedown',e=>{const x=e.clientX-cv.getBoundingClientRect().left;sel={x0:x,x1:x};});
+    document.addEventListener('mouseup',()=>{
+      if(!sel)return;const {l,r}=area(),x0=Math.max(l,Math.min(sel.x0,sel.x1)),x1=Math.min(r,Math.max(sel.x0,sel.x1));sel=null;
+      if(x1-x0<4){draw();return;}
+      const a=idxAt(x0),b=Math.max(a+13,idxAt(x1));
+      CHARTS.forEach(c=>{c.options.scales.x.min=a;c.options.scales.x.max=Math.min(N-1,b);});
+      applyRange(a,Math.min(N-1,b),null);
+      document.querySelectorAll('#zbtns button').forEach(x=>x.classList.remove('on'));
+    });
+    cv.addEventListener('dblclick',()=>document.querySelector('#zbtns button[data-d="0"]').click());
+    cv.addEventListener('click',e=>{if(matchMedia('(pointer:coarse)').matches)hover(e);});
+    addEventListener('resize',()=>setTimeout(draw,150));  // after Chart.js has resized
+    return {draw};
+  })();
+
   applyRange(null,null,null);
 }
 render();
