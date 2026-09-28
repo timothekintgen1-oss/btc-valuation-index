@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the Bitcoin Valuation Index composite and write data.json.
 
-Indicators follow the Montaigne SDCA sheet (fundamental / technical /
+Indicators follow my SDCA sheet (fundamental / technical /
 sentiment). Sources, all free:
   - Coin Metrics Community API: price, market cap, MVRV, miner issuance
   - BGeometrics (bitcoin-data.com): AVIV, RHODL, STH-SOPR, CVDD, Terminal Price
