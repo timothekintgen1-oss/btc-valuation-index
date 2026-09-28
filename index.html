@@ -8,12 +8,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{--bg:#060c18;--surface:#0b1424;--border:#1a2a4a;--border2:#243355;--text:#dde4f5;--text-dim:#5a6a8a;--gold:#f5a623}*{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;min-height:100vh;padding:28px 32px;position:relative}body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(26,42,74,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(26,42,74,.25) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}.wrap{position:relative;z-index:1;max-width:1440px;margin:0 auto}.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border)}.eyebrow{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:10px}h1{font-family:'Orbitron',monospace;font-size:26px;font-weight:900;letter-spacing:3px;line-height:1}.sub{font-size:12px;color:var(--text-dim);margin-top:8px}.hdate{font-family:'Space Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:1px;text-align:right}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}.sc{background:var(--surface);border:1px solid var(--border);padding:18px 22px;position:relative;overflow:hidden}.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac,var(--border2))}.sl{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px}.ss{font-size:11px;color:var(--text-dim);margin-top:5px}.mid{display:grid;grid-template-columns:340px 1fr;gap:14px;margin-bottom:20px}.gauge-card{background:var(--surface);border:1px solid var(--border);padding:20px 28px 28px;display:flex;flex-direction:column;align-items:center;justify-content:center}.info-card{background:var(--surface);border:1px solid var(--border);padding:28px;display:flex;flex-direction:column;gap:20px}.sec{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px}.cbar{height:8px;border-radius:2px;background:linear-gradient(90deg,#00f5ff 0%,#448aff 20%,#69f0ae 40%,#ffeb3b 55%,#ff6d00 75%,#f44336 100%);margin-bottom:5px}.cbar-lbl{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim)}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:24px}.cc{background:var(--surface);border:1px solid var(--border);padding:22px 24px;margin-bottom:14px}.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}.csub{margin-top:22px;margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px}.leg{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.li{display:flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim)}.ld{width:7px;height:7px;border-radius:50%}.footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim);letter-spacing:1px}.ub{background:var(--surface);border-left:3px solid #69f0ae;padding:8px 16px;margin-bottom:16px;font-family:'Space Mono',monospace;font-size:9px;color:#69f0ae;display:none}@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.mid{grid-template-columns:1fr}}@media(max-width:600px){.stats{grid-template-columns:1fr}body{padding:16px}}
+.icard{background:var(--surface);border:1px solid var(--border);padding:22px 24px;margin-bottom:14px}.icols{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.irow{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px;font-family:'Space Mono',monospace;font-size:9px}.irow .n{color:#8a9ab8}.irow .v{font-weight:700}.irow .na{color:#2a3a58}@media(max-width:900px){.icols{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
 <div class="ub" id="UB"></div>
-<div class="header"><div><div class="eyebrow">Montaigne Patrimoine · Proprietary Research</div><h1>BITCOIN VALUATION INDEX</h1><div class="sub">Aggregate of aggregates · Z-Score composite · On-chain + price-cycle metrics · 2011 – present</div></div><div class="hdate" id="hdate"></div></div>
+<div class="header"><div><div class="eyebrow">Montaigne Patrimoine · Proprietary Research</div><h1>BITCOIN VALUATION INDEX</h1><div class="sub">Aggregate of aggregates · Z-Score composite · Fundamental · Technical · Sentiment indicators · 2011 – present</div></div><div class="hdate" id="hdate"></div></div>
 <div class="stats">
   <div class="sc" style="--ac:#00d4ff;"><div class="sl">Current Z-Score</div><div style="font-family:'Orbitron',monospace;font-weight:700;font-size:32px;" id="sZ"></div><div class="ss" id="sSig"></div></div>
   <div class="sc" style="--ac:#f5a623;"><div class="sl">Bitcoin Price</div><div style="font-family:'Orbitron',monospace;font-weight:700;font-size:24px;color:#f5a623;" id="sP"></div><div class="ss" id="sPsub"></div></div>
@@ -24,23 +25,24 @@
   <div class="gauge-card"><svg id="gauge" width="284" height="200" viewBox="0 0 284 200"></svg><div id="badge" style="margin-top:8px;padding:6px 24px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:3px;border:1px solid;text-align:center"></div></div>
   <div class="info-card"><div><div class="sec">Valuation Color Scale</div><div class="cbar"></div><div class="cbar-lbl"><span>Extreme Buy</span><span>Undervalued</span><span>Fair Value</span><span>Elevated</span><span>Overvalued</span><span>Extreme Sell</span></div></div><div class="twocol"><div><div class="sec">Zone Definitions</div><div id="ztbl"></div></div><div><div class="sec">Distribution Statistics</div><div id="stbl"></div></div></div></div>
 </div>
+<div class="icard"><div class="sec">Indicators · current Z-score (higher = more expensive)</div><div class="icols" id="icols"></div></div>
 <div class="cc">
   <div class="ch"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);">BTC/USD PRICE · LOGARITHMIC · LINE COLORED BY Z-SCORE</div><div class="leg"><div class="li"><div class="ld" style="background:#00f5ff;"></div>Extreme Buy</div><div class="li"><div class="ld" style="background:#448aff;"></div>Undervalued</div><div class="li"><div class="ld" style="background:#69f0ae;"></div>Fair</div><div class="li"><div class="ld" style="background:#ffeb3b;"></div>Elevated</div><div class="li"><div class="ld" style="background:#ff6d00;"></div>Overvalued</div><div class="li"><div class="ld" style="background:#f44336;"></div>Extreme Sell</div></div></div>
   <div style="position:relative;height:320px;"><canvas id="priceChart"></canvas></div>
   <div class="csub"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);">VALUATION Z-SCORE · AGGREGATE OF AGGREGATES</div></div>
   <div style="position:relative;height:190px;"><canvas id="zChart"></canvas></div>
 </div>
-<div class="footer"><span>PROPRIETARY · MONTAIGNE PATRIMOINE RESEARCH · DATA: COIN METRICS</span><span id="ftr"></span></div>
+<div class="footer"><span>PROPRIETARY · MONTAIGNE PATRIMOINE RESEARCH · DATA: COIN METRICS · BGEOMETRICS · ALTERNATIVE.ME</span><span id="ftr"></span></div>
 </div>
 <script>
 
 // ══ DATA — data.json is rebuilt daily by .github/workflows/update-data.yml ══
-let LABELS=[],PRICE=[],Z_FULL=[],Z_SPARSE=[],N=0;
+let LABELS=[],PRICE=[],Z_FULL=[],Z_SPARSE=[],N=0,DATA=null;
 async function loadData(){
   const r=await fetch('data.json',{cache:'no-cache'});
   if(!r.ok)throw new Error('HTTP '+r.status);
   const d=await r.json();
-  LABELS=d.dates;PRICE=d.price;Z_FULL=d.z;Z_SPARSE=d.z;N=LABELS.length;
+  DATA=d;LABELS=d.dates;PRICE=d.price;Z_FULL=d.z;Z_SPARSE=d.z;N=LABELS.length;
 }
 
 // ══ HELPERS ══
@@ -69,6 +71,12 @@ async function render(){
   document.getElementById('ftr').textContent=LABELS[0]+' → '+LABELS[N-1]+' · '+N.toLocaleString()+' DAILY OBSERVATIONS';
   const bd=document.getElementById('badge');bd.textContent=sig_.label;bd.style.borderColor=sig_.color;bd.style.color=sig_.color;bd.style.background=sig_.color.replace(')',',0.15)').replace('rgb','rgba');
   document.getElementById('ztbl').innerHTML=[{l:'Extreme Buy',r:'Z < −2',c:'#00f5ff'},{l:'Undervalued',r:'−2 ≤ Z < −1',c:'#448aff'},{l:'Fair Value',r:'−1 ≤ Z < 1',c:'#69f0ae'},{l:'Elevated',r:'1 ≤ Z < 2',c:'#ffeb3b'},{l:'Overvalued',r:'2 ≤ Z < 3',c:'#ff6d00'},{l:'Extreme Sell',r:'Z ≥ 3',c:'#f44336'}].map(z=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;"><div style="width:7px;height:7px;border-radius:50%;background:${z.c};flex-shrink:0;"></div><span style="font-family:'Space Mono',monospace;font-size:8px;color:#8a9ab8;min-width:90px;">${z.l}</span><span style="font-family:'Space Mono',monospace;font-size:8px;color:#4a5a78;">${z.r}</span></div>`).join('');
+  document.getElementById('icols').innerHTML=['fundamental','technical','sentiment'].map(c=>{
+    const cz_=DATA.category_z[c][N-1];
+    const head=`<div class="sec">${c}${cz_!=null?` · <span style="color:${zColor(cz_)}">${cz_.toFixed(2)}</span>`:''}</div>`;
+    return '<div>'+head+DATA.indicators.filter(x=>x.category===c).map(x=>{const v=DATA.indicator_z[x.key][N-1];
+      return `<div class="irow" title="Source: ${x.source}"><span class="n">${x.label}</span>${v==null?'<span class="na">n/a</span>':`<span class="v" style="color:${zColor(v)}">${v.toFixed(2)}</span>`}</div>`;}).join('')+'</div>';
+  }).join('');
   const zM=(allZ.reduce((a,b)=>a+b,0)/allZ.length).toFixed(2),zS=Math.sqrt(allZ.reduce((a,b)=>a+(b-parseFloat(zM))**2,0)/allZ.length).toFixed(2);
   document.getElementById('stbl').innerHTML=[{k:'Mean',v:zM},{k:'Std Dev',v:zS},{k:'Min Z',v:Math.min(...allZ).toFixed(2)},{k:'Max Z',v:maxZ.toFixed(2)},{k:'Current',v:cz.toFixed(2)},{k:'N Obs',v:N.toLocaleString()}].map(s=>`<div style="display:flex;justify-content:space-between;margin-bottom:7px;gap:12px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:#4a5a78;">${s.k}</span><span style="font-family:'Space Mono',monospace;font-size:8px;color:#8a9ab8;">${s.v}</span></div>`).join('');
 

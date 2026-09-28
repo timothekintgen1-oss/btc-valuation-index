@@ -25,14 +25,14 @@ jobs:
       - name: Rebuild composite
         run: python scripts/build_index.py
 
-      - name: Commit data.json if it changed
+      - name: Commit data if it changed
         run: |
-          if git diff --quiet -- data.json; then
+          git add data.json data/cache
+          if git diff --cached --quiet; then
             echo "No new data."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data.json
           git commit -m "data: update $(date -u +%F)"
           git push
