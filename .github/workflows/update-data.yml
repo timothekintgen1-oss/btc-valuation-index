@@ -2,7 +2,10 @@ name: Update valuation data
 
 on:
   schedule:
-    - cron: "30 6 * * *"   # daily, 06:30 UTC (Coin Metrics publishes the previous day overnight)
+    # Every 4 hours at :17. GitHub often delays or drops scheduled runs (especially
+    # on the hour / half hour), so later slots catch up; a run with no new data
+    # commits nothing. Coin Metrics publishes each day's data the next morning.
+    - cron: "17 */4 * * *"
   workflow_dispatch:
 
 permissions:
