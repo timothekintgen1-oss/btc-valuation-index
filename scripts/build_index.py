@@ -314,8 +314,18 @@ def compute_indicators(days, cm, ext):
 
 def build():
     days, cm = fetch_coinmetrics()
-    ext = {k: align(days, fetch_bgeometrics(k, f)) for k, f in BG_SERIES.items()}
-    ext["fear_greed"] = align(days, fetch_fear_greed())
+    raw = {k: fetch_bgeometrics(k, f) for k, f in BG_SERIES.items()}
+    raw["fear_greed"] = fetch_fear_greed()
+    ext = {k: align(days, v) for k, v in raw.items()}
+
+    # Date of the latest real (not carried-forward) value behind each indicator
+    last_of = lambda k: max((d for d in raw[k] if d <= days[-1]), default=None)
+    external = {"aviv": ["aviv"], "rhodl": ["rhodl-ratio"], "sth_sopr": ["sth-sopr"],
+                "price_tools": ["cvdd", "terminal-price"], "fear_greed": ["fear_greed"]}
+    asof = {k: days[-1] for k, *_ in INDICATORS}
+    for k, sources in external.items():
+        dates = [last_of(s) for s in sources]
+        asof[k] = min(dates) if all(dates) else None
 
     ind = compute_indicators(days, cm, ext)
     zi = {k: rolling_z(ind[k]) for k, *_ in INDICATORS}
@@ -333,6 +343,7 @@ def build():
         "z": [r2(composite[i]) for i in idx],
         "category_z": {c: [r2(v[i]) for i in idx] for c, v in cats.items()},
         "indicator_z": {k: [r2(v[i]) for i in idx] for k, v in zi.items()},
+        "asof": asof,
     }
     with open(OUT, "w") as f:
         json.dump(data, f, separators=(",", ":"))
@@ -340,7 +351,7 @@ def build():
     print(f"{data['dates'][0]} -> {data['dates'][last]}: {len(idx)} days, "
           f"Z={data['z'][last]}, price={data['price'][last]}")
     for k, l, *_ in INDICATORS:
-        print(f"  {l:28s} {data['indicator_z'][k][last]}")
+        print(f"  {l:28s} {data['indicator_z'][k][last]}  (as of {asof[k]})")
 
 
 if __name__ == "__main__":

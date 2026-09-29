@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  issues: write      # zone-change alerts
 
 concurrency:
   group: update-data
@@ -28,9 +29,21 @@ jobs:
       - name: Rebuild composite
         run: python scripts/build_index.py
 
+      - name: Check for a zone change
+        id: zone
+        run: python scripts/zone_alert.py
+
+      - name: Open an alert issue
+        if: steps.zone.outputs.alert == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.zone.outputs.title }}
+          BODY: ${{ steps.zone.outputs.body }}
+        run: gh issue create --title "$TITLE" --body "$BODY"
+
       - name: Commit data if it changed
         run: |
-          git add data.json data/cache
+          git add data.json data/cache data/alert_state.json
           if git diff --cached --quiet; then
             echo "No new data."
             exit 0
