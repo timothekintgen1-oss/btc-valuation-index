@@ -57,7 +57,7 @@
 <div class="icard" id="bt"><div class="ihead"><div class="sec">SDCA backtest · value ÷ amount invested, weekly buys weighted by the Z-score</div><div class="zbtns" id="btstart"><button data-y="2015">2015</button><button data-y="2017">2017</button><button data-y="2019">2019</button><button data-y="2021">2021</button><button data-y="2023">2023</button></div></div>
   <div class="btwrap"><table class="btable" id="bttab"></table></div>
   <div style="position:relative;height:220px;"><canvas id="btChart"></canvas></div>
-  <div class="inote">Every 7 days from 1 January of the chosen year, at that day's close. <b>DCA</b>: buy $100. <b>SDCA</b>: buy $100 × (1 − Z), capped at 3× and never below 0 — $300 at Z ≤ −2, $100 at Z = 0, nothing from Z = 1. <b>SDCA + take profit</b>: same buys, and sell 5% of the BTC held each week while Z ≥ 2 (10% while Z ≥ 3); proceeds stay in cash. Value = BTC × latest price + cash. The composite only uses past data each day, except the power-law fit behind one indicator; fees and taxes ignored. Not investment advice.</div>
+  <div class="inote">Every 7 days from 1 January of the chosen year, at that day's close. <b>DCA</b>: buy $100. <b>SDCA</b>: buy $100 × (1 − Z), capped at 3× and never below 0 — $300 at Z ≤ −2, $100 at Z = 0, nothing from Z = 1. <b>SDCA + take profit</b>: same buys, and sell 5% of the BTC held each week while Z ≥ 2 (10% while Z ≥ 3); proceeds stay in cash. <b>Risk zones</b>: buy $200 in the buy zone (risk &lt; 25%), $100 when accumulating (25–50%), nothing in the trim zone (50–75%), and sell 2% of the BTC held each week in the sell zone (≥ 75%). Value = BTC × latest price + cash. The composite only uses past data each day, except the power-law fit behind one indicator; fees and taxes ignored. Not investment advice.</div>
 </div>
 <div class="footer"><span>PERSONAL, NON-COMMERCIAL PROJECT · NOT INVESTMENT ADVICE · DATA: <a href="https://coinmetrics.io/community-network-data/" target="_blank" rel="noopener">COIN METRICS</a> (CC BY-NC 4.0) · <a href="https://bgeometrics.com/" target="_blank" rel="noopener">BGEOMETRICS</a> · <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener">ALTERNATIVE.ME</a></span><span id="ftr"></span></div>
 </div>
@@ -317,7 +317,8 @@ async function render(){
   const btC=new Chart(document.getElementById('btChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{...tip2,callbacks:{label:i=>'  '+i.dataset.label+': ×'+i.raw.toFixed(2)}}},scales:{x:{grid,border:bord,ticks:{maxTicksLimit:innerWidth<600?4:8,maxRotation:0,color:'#2a3a58',callback:function(v){return this.getLabelForValue(v).slice(0,7);}}},y:{grid,border:bord,afterFit:aF,ticks:{color:'#2a3a58',callback:v=>'×'+v.toFixed(1)}}}}});
   const STRATS=[{name:'DCA',color:'#8a9ab8',buy:()=>100,sell:()=>0},
     {name:'SDCA',color:'#00d4ff',buy:z=>100*Math.max(0,Math.min(3,1-z)),sell:()=>0},
-    {name:'SDCA + take profit',color:'#f5a623',buy:z=>100*Math.max(0,Math.min(3,1-z)),sell:z=>z>=3?.10:z>=2?.05:0}];
+    {name:'SDCA + take profit',color:'#f5a623',buy:z=>100*Math.max(0,Math.min(3,1-z)),sell:z=>z>=3?.10:z>=2?.05:0},
+    {name:'Risk zones',color:'#b2ff59',buy:z=>{const r=risk(z);return r<25?200:r<50?100:0;},sell:z=>risk(z)>=75?.02:0}];
   function backtest(year){
     document.querySelectorAll('#btstart button').forEach(b=>b.classList.toggle('on',+b.dataset.y===year));
     const s0=LABELS.findIndex((d,i)=>d>=year+'-01-01'&&Z_FULL[i]!=null);
