@@ -14,7 +14,8 @@ request does not break the daily build.
 
 Method:
   1. Each indicator is oriented so that higher = more expensive, then turned
-     into a rolling z-score (6-year window, only past data).
+     into a rolling z-score (6-year window, only past data). The power-law
+     fit is also refitted each day on past data only.
   2. The composite is the equal-weight average of the available indicator
      z-scores (as in the SDCA sheet), re-standardised the same way.
   3. Category z-scores (average of their indicators) are kept for display.
@@ -44,6 +45,7 @@ WINDOW = 6 * 365      # rolling standardisation window (days)
 MIN_METRIC = 180      # history an indicator needs before it gets a z-score
 MIN_AGG = 90          # same, for category and composite layers
 MAX_FFILL = 10        # days a delayed external series may be carried forward
+MIN_FIT = 2 * 365     # history the power-law fit needs before it is used
 
 # BGeometrics endpoint -> field in its response
 BG_SERIES = {
@@ -174,13 +176,32 @@ def safe_log(x):
     return math.log(x) if x is not None and x > 0 else None
 
 
-def ols(xs, ys):
-    pts = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
-    n = len(pts)
-    mx = sum(p[0] for p in pts) / n
-    my = sum(p[1] for p in pts) / n
-    b = sum((x - mx) * (y - my) for x, y in pts) / sum((x - mx) ** 2 for x, _ in pts)
-    return my - b * mx, b
+def expanding_power_law(days, log_price, min_points=MIN_FIT):
+    """Residual of log(price) against a power law in time, fitted only on past data.
+
+    Each day, log(price) is regressed on log(days since genesis) using that day
+    and the days before it (running OLS sums), so no future price leaks into
+    the residual.
+    """
+    out, n, sx, sy, sxx, sxy = [], 0, 0.0, 0.0, 0.0, 0.0
+    for d, y in zip(days, log_price):
+        if y is None:
+            out.append(None)
+            continue
+        x = math.log((date.fromisoformat(d) - GENESIS).days)
+        n += 1
+        sx += x
+        sy += y
+        sxx += x * x
+        sxy += x * y
+        den = n * sxx - sx * sx
+        if n < min_points or den <= 0:
+            out.append(None)
+            continue
+        b = (n * sxy - sx * sy) / den
+        a = (sy - b * sx) / n
+        out.append(y - (a + b * x))
+    return out
 
 
 def rolling_z(xs, window=WINDOW, min_periods=MIN_METRIC):
@@ -268,12 +289,10 @@ def compute_indicators(days, cm, ext):
         tools.append((math.log(p) - math.log(lo)) / (math.log(hi) - math.log(lo)) if ok else None)
     ind["price_tools"] = tools
 
-    # Power law: log(price) vs log(days since genesis), residual
-    t = [math.log((date.fromisoformat(d) - GENESIS).days) for d in days]
-    a, b = ols(t, lp)
-    ind["power_law"] = [y - (a + b * x) if y is not None else None for x, y in zip(t, lp)]
+    # Power law: residual against a fit that only sees past prices
+    ind["power_law"] = expanding_power_law(days, lp)
 
-    # Rainbow chart regression: log10(price) = 2.66167 · ln(days since 2009-01-09) − 17.9183
+    # Rainbow chart regression (published coefficients, fitted after the fact): log10(price) = 2.66167 · ln(days since 2009-01-09) − 17.9183
     r0 = date(2009, 1, 9)
     ind["rainbow"] = [math.log10(p) - (2.66167 * math.log((date.fromisoformat(d) - r0).days) - 17.9183)
                       for d, p in zip(days, price)]
@@ -319,7 +338,9 @@ def build():
     ext = {k: align(days, v) for k, v in raw.items()}
 
     # Date of the latest real (not carried-forward) value behind each indicator
-    last_of = lambda k: max((d for d in raw[k] if d <= days[-1]), default=None)
+    def last_of(k):
+        return max((d for d in raw[k] if d <= days[-1]), default=None)
+
     external = {"aviv": ["aviv"], "rhodl": ["rhodl-ratio"], "sth_sopr": ["sth-sopr"],
                 "price_tools": ["cvdd", "terminal-price"], "fear_greed": ["fear_greed"]}
     asof = {k: days[-1] for k, *_ in INDICATORS}
@@ -334,7 +355,10 @@ def build():
     composite = rolling_z(mean_available(list(zi.values())), min_periods=MIN_AGG)
 
     idx = [i for i, z in enumerate(composite) if z is not None]
-    r2 = lambda x: round(x, 2) if x is not None else None
+
+    def r2(x):
+        return round(x, 2) if x is not None else None
+
     data = {
         "source": "Coin Metrics, BGeometrics, alternative.me",
         "indicators": [{"key": k, "label": l, "category": c, "source": s} for k, l, c, s in INDICATORS],
