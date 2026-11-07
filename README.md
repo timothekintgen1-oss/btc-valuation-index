@@ -90,11 +90,36 @@ La page compare, depuis l'année choisie, quatre façons d'acheter chaque semain
 
 Frais et fiscalité ne sont pas pris en compte.
 
+## Redondance et pondération : ce que j'ai testé
+
+Beaucoup d'indicateurs mesurent au fond la même chose : la position du prix par rapport à son historique. Sur leurs z-scores, 18 paires ont une corrélation supérieure à 0,85 (par exemple MVRV et NUPL : 0,95, ce qui est logique puisque NUPL = 1 − 1/MVRV). Le composite est donc moins diversifié que ses 14 composantes ne le laissent penser.
+
+J'ai comparé l'indice publié à trois variantes : sans NUPL, à poids égaux par catégorie, et les deux combinés (`scripts/analyze_variants.py`).
+
+| | Publié | Sans NUPL | Par catégorie | Par catégorie, sans NUPL |
+|---|---|---|---|---|
+| Sommet 2017 | +2,42 | +2,44 | +2,49 | +2,64 |
+| Creux 2022 | −2,42 | −2,35 | −2,21 | −2,13 |
+| Sommet nov. 2021 | +1,05 | +1,04 | +1,07 | +1,06 |
+| Sommet oct. 2025 | +0,74 | +0,75 | +0,62 | +0,61 |
+| SDCA depuis 2019 (valeur / investi) | ×4,59 | ×4,56 | ×4,11 | ×4,09 |
+| SDCA depuis 2021 | ×2,29 | ×2,29 | ×2,19 | ×2,18 |
+
+Conclusions :
+
+- **Retirer NUPL ne change presque rien** : la redondance n'est pas portée par un indicateur en particulier, elle est générale.
+- **Pondérer par catégorie dégrade le backtest** : le Fear & Greed, seul indicateur de sentiment, pèserait alors un tiers du score.
+- **Aucune variante ne signale les sommets de 2021 et 2025 comme extrêmes.** La cause n'est pas la pondération : les cycles du Bitcoin sont de moins en moins amples, et chaque date est comparée aux six années précédentes.
+
+Je garde donc la pondération actuelle. Je n'ai pas modifié l'indice pour qu'il « voie » le sommet de 2025 : tout réglage choisi pour cela serait calibré sur un événement déjà connu, sans moyen de le valider hors échantillon.
+
 ## Limites
 
 - Les séries BGeometrics ne remontent qu'à 2022 environ et le Fear & Greed à 2018 : avant ces dates, le composite repose sur moins d'indicateurs (9 avant 2018).
 - Le Rainbow Chart utilise des coefficients ajustés après coup.
 - Un indice de valorisation dit si le prix est cher, pas quand il va se retourner : un marché « bon marché » peut le rester longtemps.
+- Les sommets de 2021 et 2025 n'ont pas été signalés comme extrêmes (voir ci-dessus).
+- Démarrée en 2017, la règle SDCA fait moins bien qu'un DCA classique : l'indice était déjà élevé début 2017 et elle achetait peu avant la hausse.
 - Les backtests ignorent les frais, les impôts et le glissement de prix.
 
 ## Lancer en local
