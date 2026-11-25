@@ -90,6 +90,61 @@ class TestHelpers(unittest.TestCase):
         self.assertTrue(all(0 <= v <= 100 for v in values))
 
 
+class TestSdcaFeed(unittest.TestCase):
+    PAGE = ('<script>const A=1;\n'
+            'const CBPL_Z = {"start":1609459200000,"values":[0.5,null,-1.25]};\n'
+            'const OTHER = {"start":0,"values":[9]};</script>')
+
+    def test_parse_dates_and_values(self):
+        s = bi.parse_sdca_series(self.PAGE, "CBPL_Z")
+        self.assertEqual(s, {"2021-01-01": 0.5, "2021-01-03": -1.25})   # null day skipped
+
+    def test_missing_series_raises(self):
+        with self.assertRaises(ValueError):
+            bi.parse_sdca_series(self.PAGE, "ONCHAIN_Z")
+
+
+class TestRaqqr(unittest.TestCase):
+    def test_levels_match_the_sdca_app(self):
+        # rails and median shown by the app on 2026-11-24: $73.8K / $130K / $216K
+        lv = bi.raqqr_levels("2026-11-24")
+        self.assertEqual(lv, sorted(lv))
+        for got, want in ((lv[0], 73778), (lv[3], 129714), (lv[-1], 215712)):
+            self.assertAlmostEqual(got / want, 1, places=3)
+
+    def test_position_scale(self):
+        lv = bi.raqqr_levels("2024-01-01")
+        self.assertAlmostEqual(bi.raqqr_position("2024-01-01", lv[3]), 0.0, places=9)
+        self.assertAlmostEqual(bi.raqqr_position("2024-01-01", lv[0]), -3.0, places=9)
+        self.assertAlmostEqual(bi.raqqr_position("2024-01-01", lv[-1]), 3.0, places=9)
+        self.assertEqual(bi.raqqr_position("2024-01-01", lv[0] / 10), -3.0)    # clipped
+
+    def test_position_matches_app_checkpoint(self):
+        # the app's EQM z-score on 2021-11-10 (close 66 954) was -2.916, sign flipped here
+        self.assertAlmostEqual(bi.raqqr_position("2021-11-10", 66954), 2.916, places=2)
+
+
+class TestModels(unittest.TestCase):
+    def test_sdca_model_reproduces_the_app(self):
+        # 2021-11-10 pillars (this file's sign): price 2.916, CBPL 2.71, on-chain 2.03 -> app showed -2.55
+        z = bi.sdca_model([[2.916], [2.71], [2.03]])[0]
+        self.assertAlmostEqual(z, 2.552, places=3)
+
+    def test_sdca_model_needs_every_pillar_and_clamps(self):
+        self.assertEqual(bi.sdca_model([[1.0, 4.0, 1.0], [None, 4.0, 1.0]]), [None, 3.0, 1.0])
+
+    def test_expanding_z_ignores_future_and_clips(self):
+        xs = [math.cos(i / 9) for i in range(500)]
+        a = bi.expanding_z(xs, min_periods=50)
+        b = bi.expanding_z(xs[:499] + [1e9], min_periods=50)    # one huge outlier at the end
+        self.assertEqual(a[:499], b[:499])
+        self.assertEqual(b[-1], 3.0)
+
+    def test_default_composite_excludes_optional(self):
+        self.assertTrue(set(bi.OPTIONAL).isdisjoint(bi.DEFAULT_KEYS))
+        self.assertEqual(len(bi.DEFAULT_KEYS) + len(bi.OPTIONAL), len(bi.INDICATORS))
+
+
 class TestZones(unittest.TestCase):
     def test_zone_boundaries(self):
         names = [za.ZONES[za.zone_index(z)][1] for z in (-2.5, -1.5, 0, 1.5, 2.5, 3.5)]

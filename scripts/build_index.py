@@ -7,18 +7,30 @@ sentiment). Sources, all free:
   - BGeometrics (bitcoin-data.com): AVIV, RHODL, STH-SOPR, CVDD, Terminal Price
     (free tier: ~4 years of history, 7-day delay, 10 requests/hour)
   - alternative.me: Fear & Greed index (since 2018)
+  - SDCA signal app (Investing Campus, public page): ChartInspect on-chain
+    series it embeds, already smoothed and z-scored (+ = cheap): cost-basis
+    profit/loss ratio, on-chain risk composite, realized P/L Sharpe
 
 External series are cached in data/cache/ so their history keeps growing
 even though the free tiers only return a limited window, and so one failed
 request does not break the daily build.
 
-Method:
+Method (BVI composite):
   1. Each indicator is oriented so that higher = more expensive, then turned
      into a rolling z-score (6-year window, only past data). The power-law
      fit is also refitted each day on past data only.
   2. The composite is the equal-weight average of the available indicator
      z-scores (as in the SDCA sheet), re-standardised the same way.
+     Indicators in OPTIONAL are published but left out of the composite.
   3. Category z-scores (average of their indicators) are kept for display.
+
+Two more models are published next to it (data.json "models"):
+  - sdca: the SDCA app's composite, reproduced exactly: mean of three pillars
+    (price position in the RAQQR quantile model, cost-basis P/L, on-chain
+    risk composite), clamped to ±3. The RAQQR coefficients were fitted on the
+    whole 2010-2026 history, so this model sees the future in a backtest.
+  - sdca_causal: the same model with the price pillar replaced by the
+    past-only power-law residual, to measure how much that hindsight is worth.
 
 Standard library only, so the GitHub Action needs no dependencies.
 """
@@ -30,7 +42,7 @@ import sys
 import time
 import urllib.request
 from collections import deque
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 OUT = os.path.join(ROOT, "data.json")
@@ -56,6 +68,26 @@ BG_SERIES = {
     "terminal-price": "terminalPrice",
 }
 
+# SDCA signal app: public page embedding ChartInspect series as
+# `const NAME = {"start": <utc ms>, "values": [...]}` (+ = cheap, - = expensive)
+SDCA_URL = "https://sdca-signals-automation-production-bdd2.up.railway.app/"
+SDCA_SERIES = {"sdca_cbpl": "CBPL_Z", "sdca_onchain": "ONCHAIN_Z", "sdca_sharpe": "SHARPE_Z"}
+
+# RAQQR price model (Cowen 2026, published full-sample coefficients, as used by
+# the SDCA app): Q_tau(log10 price) = c + a·x + b·x², x = ln(days since
+# 2009-01-01) − MU. Rows: quantile, c, a, b.
+RAQQR_MU = 7.9914
+RAQQR_GENESIS = date(2009, 1, 1)
+RAQQR_COEF = [
+    (0.01, 2.837, 2.578, -0.0241),
+    (0.10, 2.933, 2.552, -0.0241),
+    (0.25, 3.004, 2.554, -0.0241),
+    (0.50, 3.214, 2.482, -0.1126),
+    (0.75, 3.562, 2.283, -0.3259),
+    (0.95, 3.897, 1.964, -0.3259),
+    (0.99, 4.028, 1.904, -0.3259),
+]
+
 INDICATORS = [
     # key, label, category, source
     ("mvrv_z", "MVRV Z-Score", "fundamental", "Coin Metrics"),
@@ -65,15 +97,26 @@ INDICATORS = [
     ("rhodl", "RHODL Ratio", "fundamental", "BGeometrics"),
     ("price_tools", "CVDD → Terminal Price", "fundamental", "BGeometrics"),
     ("sth_sopr", "STH-SOPR", "fundamental", "BGeometrics"),
+    ("cbpl", "Cost Basis P/L Ratio", "fundamental", "ChartInspect (SDCA app)"),
+    ("onchain_risk", "On-chain Risk Composite", "fundamental", "ChartInspect (SDCA app)"),
+    ("rpl_sharpe", "Realized P/L Sharpe", "fundamental", "ChartInspect (SDCA app)"),
     ("power_law", "Power Law Oscillator", "technical", "Coin Metrics"),
     ("sharpe_52w", "Rolling 52W Sharpe", "technical", "Coin Metrics"),
     ("rsi_monthly", "Monthly RSI (14)", "technical", "Coin Metrics"),
     ("days_higher", "Days Higher Than Price", "technical", "Coin Metrics"),
     ("beam", "BEAM (price / 200W MA)", "technical", "Coin Metrics"),
     ("rainbow", "Rainbow Chart", "technical", "Coin Metrics"),
+    ("raqqr", "Quantile Rainbow (RAQQR)", "technical", "Cowen 2026 coefficients"),
     ("fear_greed", "Fear & Greed (7d avg)", "sentiment", "alternative.me"),
 ]
 CATEGORIES = ["fundamental", "technical", "sentiment"]
+# Published and selectable on the page, but not in the default composite:
+# both are rescaled with the whole history (see HINDSIGHT).
+OPTIONAL = {"raqqr", "rpl_sharpe"}
+DEFAULT_KEYS = [k for k, *_ in INDICATORS if k not in OPTIONAL]
+# Inputs whose construction uses data after the day they describe
+# (coefficients fitted on the full history, or full-history percentile ranks).
+HINDSIGHT = {"rainbow", "raqqr", "rpl_sharpe", "onchain_risk"}
 
 
 # ── Fetch ────────────────────────────────────────────────────────────────
@@ -141,6 +184,52 @@ def fetch_fear_greed():
         rows = get_json("https://api.alternative.me/fng/?limit=0&format=json")["data"]
         return {date.fromtimestamp(int(r["timestamp"])).isoformat(): float(r["value"]) for r in rows}
     return cached("fear_greed", fetcher)
+
+
+def get_text(url, tries=3):
+    for i in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "btc-valuation-index"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.read().decode("utf-8")
+        except Exception as e:
+            if i == tries - 1:
+                raise
+            print(f"retry {i + 1} {url}: {e}", file=sys.stderr)
+            time.sleep(5 * (i + 1))
+
+
+def parse_sdca_series(html, name):
+    """Extract `const NAME = {"start": ms, "values": [...]}` from the SDCA app page
+    as {iso date: value}; null values (days without data) are skipped."""
+    marker = f"const {name}"
+    pos = html.find(marker)
+    if pos < 0:
+        raise ValueError(f"{name} not found in the SDCA page")
+    obj, _ = json.JSONDecoder().raw_decode(html[html.index("{", pos):])
+    start = datetime.fromtimestamp(obj["start"] / 1000, tz=timezone.utc).date()
+    return {(start + timedelta(days=i)).isoformat(): float(v)
+            for i, v in enumerate(obj["values"]) if v is not None}
+
+
+def fetch_sdca():
+    """The three on-chain series of the SDCA app, each merged into its own cache."""
+    page = {}
+
+    def series(name):
+        def fetcher():
+            if "html" not in page:
+                if "error" in page:          # one failed download is enough for all three
+                    raise page["error"]
+                try:
+                    page["html"] = get_text(SDCA_URL)
+                except Exception as e:
+                    page["error"] = e
+                    raise
+            return parse_sdca_series(page["html"], name)
+        return fetcher
+
+    return {key: cached(key, series(name)) for key, name in SDCA_SERIES.items()}
 
 
 def align(days, series):
@@ -236,6 +325,60 @@ def mean_available(cols):
     return out
 
 
+def expanding_z(xs, min_periods=365, clip=3.0):
+    """z-score against every valid point up to and including this one, clipped."""
+    out, n, s, s2 = [], 0, 0.0, 0.0
+    for x in xs:
+        if x is None:
+            out.append(None)
+            continue
+        n += 1
+        s += x
+        s2 += x * x
+        if n < min_periods:
+            out.append(None)
+            continue
+        mu = s / n
+        sd = math.sqrt(max(s2 / n - mu * mu, 0.0)) or 1.0
+        out.append(max(-clip, min(clip, (x - mu) / sd)))
+    return out
+
+
+def clamp(x, lo, hi):
+    return max(lo, min(hi, x))
+
+
+# ── RAQQR quantile model ─────────────────────────────────────────────────
+def raqqr_levels(day):
+    """Prices of the 1/10/25/50/75/95/99 % quantiles on `day`, ascending
+    (sorting is the 'rearrangement' that keeps quantiles from crossing)."""
+    t = max(1, (date.fromisoformat(day) - RAQQR_GENESIS).days)
+    x = math.log(t) - RAQQR_MU
+    return sorted(10 ** (c + a * x + b * x * x) for _, c, a, b in RAQQR_COEF)
+
+
+def raqqr_position(day, price):
+    """Where the price sits in the quantile model, higher = more expensive:
+    0 at the median, +3 at the 99 % rail, -3 at the 1 % rail (log-linear in
+    between, clipped). This is the SDCA app's EQM z-score with the sign flipped."""
+    lv = raqqr_levels(day)
+    lo, mid, hi = math.log(lv[0]), math.log(lv[3]), math.log(lv[-1])
+    lp = math.log(price)
+    if lp <= mid:
+        return -clamp(3 * (mid - lp) / (mid - lo), 0.0, 3.0)
+    return clamp(3 * (lp - mid) / (hi - mid), 0.0, 3.0)
+
+
+def sdca_model(pillars):
+    """The SDCA app composite: mean of its pillars (here in this file's sign,
+    higher = more expensive), clamped to ±3, only on days where every pillar
+    has a value — the app never blends a partial set."""
+    out = []
+    for row in zip(*pillars):
+        out.append(None if any(v is None for v in row) else clamp(sum(row) / len(row), -3.0, 3.0))
+    return out
+
+
 # ── Indicators (higher = more expensive) ─────────────────────────────────
 def monthly_rsi(days, price, n=14):
     """Wilder RSI(14) on monthly closes; the current month's close is the day's price."""
@@ -328,21 +471,41 @@ def compute_indicators(days, cm, ext):
     ind["beam"] = [safe_log(p / m) if m else None for p, m in zip(price, p1400)]
 
     ind["fear_greed"] = sma(ext["fear_greed"], 7)
+
+    # SDCA app series are z-scores with + = cheap: flip to this file's orientation
+    for key, src in (("cbpl", "sdca_cbpl"), ("onchain_risk", "sdca_onchain"), ("rpl_sharpe", "sdca_sharpe")):
+        ind[key] = [-v if v is not None else None for v in ext[src]]
+
+    ind["raqqr"] = [raqqr_position(d, p) for d, p in zip(days, price)]
     return ind
 
 
-def build():
+def load_inputs():
+    """Fetch every source. Returns days, Coin Metrics columns, the raw external
+    {date: value} dicts and the same series aligned on `days`."""
     days, cm = fetch_coinmetrics()
     raw = {k: fetch_bgeometrics(k, f) for k, f in BG_SERIES.items()}
     raw["fear_greed"] = fetch_fear_greed()
+    raw.update(fetch_sdca())
     ext = {k: align(days, v) for k, v in raw.items()}
+    return days, cm, raw, ext
+
+
+def composite_of(zi, keys):
+    """Equal-weight mean of the indicator z-scores in `keys`, re-standardised."""
+    return rolling_z(mean_available([zi[k] for k in keys]), min_periods=MIN_AGG)
+
+
+def build():
+    days, cm, raw, ext = load_inputs()
 
     # Date of the latest real (not carried-forward) value behind each indicator
     def last_of(k):
         return max((d for d in raw[k] if d <= days[-1]), default=None)
 
     external = {"aviv": ["aviv"], "rhodl": ["rhodl-ratio"], "sth_sopr": ["sth-sopr"],
-                "price_tools": ["cvdd", "terminal-price"], "fear_greed": ["fear_greed"]}
+                "price_tools": ["cvdd", "terminal-price"], "fear_greed": ["fear_greed"],
+                "cbpl": ["sdca_cbpl"], "onchain_risk": ["sdca_onchain"], "rpl_sharpe": ["sdca_sharpe"]}
     asof = {k: days[-1] for k, *_ in INDICATORS}
     for k, sources in external.items():
         dates = [last_of(s) for s in sources]
@@ -350,32 +513,49 @@ def build():
 
     ind = compute_indicators(days, cm, ext)
     zi = {k: rolling_z(ind[k]) for k, *_ in INDICATORS}
-    cats = {c: rolling_z(mean_available([zi[k] for k, _, cat, _ in INDICATORS if cat == c]),
-                         min_periods=MIN_AGG) for c in CATEGORIES}
-    composite = rolling_z(mean_available(list(zi.values())), min_periods=MIN_AGG)
+    cats = {c: composite_of(zi, [k for k, _, cat, _ in INDICATORS if cat == c and k in DEFAULT_KEYS])
+            for c in CATEGORIES}
+    composite = composite_of(zi, DEFAULT_KEYS)
+
+    # SDCA app model and its causal twin (pillars in this file's sign)
+    price_causal = expanding_z(ind["power_law"])
+    pillars = {"price": ind["raqqr"], "price_causal": price_causal,
+               "cbpl": ind["cbpl"], "onchain": ind["onchain_risk"]}
+    sdca = sdca_model([pillars["price"], pillars["cbpl"], pillars["onchain"]])
+    sdca_causal = sdca_model([pillars["price_causal"], pillars["cbpl"], pillars["onchain"]])
 
     idx = [i for i, z in enumerate(composite) if z is not None]
 
-    def r2(x):
-        return round(x, 2) if x is not None else None
+    def col(v, nd=2):
+        return [round(v[i], nd) if v[i] is not None else None for i in idx]
 
     data = {
-        "source": "Coin Metrics, BGeometrics, alternative.me",
-        "indicators": [{"key": k, "label": l, "category": c, "source": s} for k, l, c, s in INDICATORS],
+        "version": 3,
+        "source": "Coin Metrics, BGeometrics, alternative.me, ChartInspect via the SDCA app",
+        "indicators": [{"key": k, "label": l, "category": c, "source": s,
+                        "default": k not in OPTIONAL, "hindsight": k in HINDSIGHT}
+                       for k, l, c, s in INDICATORS],
         "dates": [days[i] for i in idx],
         "price": [round(cm["PriceUSD"][i], 2) for i in idx],
-        "z": [r2(composite[i]) for i in idx],
-        "category_z": {c: [r2(v[i]) for i in idx] for c, v in cats.items()},
-        "indicator_z": {k: [r2(v[i]) for i in idx] for k, v in zi.items()},
+        "z": col(composite),
+        "category_z": {c: col(v) for c, v in cats.items()},
+        "indicator_z": {k: col(v) for k, v in zi.items()},
         "asof": asof,
+        "models": {
+            "sdca": col(sdca, 4),               # 4 decimals: the app shows its risk to 0.01 %
+            "sdca_causal": col(sdca_causal, 4),
+            "pillars": {k: col(v) for k, v in pillars.items()},
+        },
     }
     with open(OUT, "w") as f:
         json.dump(data, f, separators=(",", ":"))
     last = len(idx) - 1
     print(f"{data['dates'][0]} -> {data['dates'][last]}: {len(idx)} days, "
           f"Z={data['z'][last]}, price={data['price'][last]}")
+    print(f"  SDCA model {data['models']['sdca'][last]}  causal twin {data['models']['sdca_causal'][last]}")
     for k, l, *_ in INDICATORS:
-        print(f"  {l:28s} {data['indicator_z'][k][last]}  (as of {asof[k]})")
+        flag = "" if k in DEFAULT_KEYS else "  [optional]"
+        print(f"  {l:28s} {data['indicator_z'][k][last]}  (as of {asof[k]}){flag}")
 
 
 if __name__ == "__main__":

@@ -47,12 +47,9 @@ def sdca(days, price, z, year):
 
 
 def main():
-    days, cm = bi.fetch_coinmetrics()
-    raw = {k: bi.fetch_bgeometrics(k, f) for k, f in bi.BG_SERIES.items()}
-    raw["fear_greed"] = bi.fetch_fear_greed()
-    ext = {k: bi.align(days, v) for k, v in raw.items()}
+    days, cm, _, ext = bi.load_inputs()
     ind = bi.compute_indicators(days, cm, ext)
-    zi = {k: bi.rolling_z(ind[k]) for k, *_ in bi.INDICATORS}
+    zi = {k: bi.rolling_z(ind[k]) for k in bi.DEFAULT_KEYS}
     label = {k: l for k, l, *_ in bi.INDICATORS}
     category = {k: c for k, _, c, _ in bi.INDICATORS}
     keys = list(zi)
@@ -68,7 +65,7 @@ def main():
 
     no_nupl = [k for k in keys if k != "nupl"]
     variants = {
-        "Publié (14, poids égaux)": composite(keys),
+        f"Publié ({len(keys)}, poids égaux)": composite(keys),
         "Sans NUPL": composite(no_nupl),
         "Par catégorie": composite(keys, by_category=True),
         "Par catégorie, sans NUPL": composite(no_nupl, by_category=True),
