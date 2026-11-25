@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Only used to run the JavaScript unit tests (no dependencies): npm test",
+  "scripts": {
+    "test": "node --test tests/js/*.test.js"
+  }
+}

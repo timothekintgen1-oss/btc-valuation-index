@@ -32,6 +32,11 @@ jobs:
       - name: Rebuild composite
         run: python scripts/build_index.py
 
+      # The page recomputes signals in JavaScript: check it still agrees with the
+      # fresh data.json before publishing it (Node is preinstalled on the runner).
+      - name: Run JavaScript tests on the new data
+        run: node --test tests/js/*.test.js
+
       - name: Check for a zone change
         id: zone
         run: python scripts/zone_alert.py

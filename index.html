@@ -4,344 +4,188 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bitcoin Valuation Index</title>
+<meta name="description" content="Personal Bitcoin valuation dashboard: a composite of on-chain, technical and sentiment indicators, the SDCA quantile model and an accumulation / distribution DCA planner.">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
-<style>
-:root{--bg:#060c18;--surface:#0b1424;--border:#1a2a4a;--border2:#243355;--text:#dde4f5;--text-dim:#5a6a8a;--gold:#f5a623}*{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;min-height:100vh;padding:28px 32px;position:relative}body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(26,42,74,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(26,42,74,.25) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}.wrap{position:relative;z-index:1;max-width:1440px;margin:0 auto}.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border)}.eyebrow{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:10px}h1{font-family:'Orbitron',monospace;font-size:26px;font-weight:900;letter-spacing:3px;line-height:1}.sub{font-size:12px;color:var(--text-dim);margin-top:8px}.hdate{font-family:'Space Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:1px;text-align:right}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}.sc{background:var(--surface);border:1px solid var(--border);padding:18px 22px;position:relative;overflow:hidden}.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac,var(--border2))}.sl{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px}.ss{font-size:11px;color:var(--text-dim);margin-top:5px}.mid{display:grid;grid-template-columns:340px 1fr;gap:14px;margin-bottom:20px}.gauge-card{background:var(--surface);border:1px solid var(--border);padding:20px 28px 28px;display:flex;flex-direction:column;align-items:center;justify-content:center}.info-card{background:var(--surface);border:1px solid var(--border);padding:28px;display:flex;flex-direction:column;gap:20px}.sec{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px}.cbar{height:8px;border-radius:2px;background:linear-gradient(90deg,#00f5ff 0%,#448aff 20%,#69f0ae 40%,#ffeb3b 55%,#ff6d00 75%,#f44336 100%);margin-bottom:5px}.cbar-lbl{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim)}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:24px}.cc{background:var(--surface);border:1px solid var(--border);padding:22px 24px;margin-bottom:14px}.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}.csub{margin-top:22px;margin-bottom:14px;border-top:1px solid var(--border);padding-top:14px}.leg{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.li{display:flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim)}.ld{width:7px;height:7px;border-radius:50%}.footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim);letter-spacing:1px}.ub{background:var(--surface);border-left:3px solid #69f0ae;padding:8px 16px;margin-bottom:16px;font-family:'Space Mono',monospace;font-size:9px;color:#69f0ae;display:none}@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.mid{grid-template-columns:1fr}}@media(max-width:600px){.stats{grid-template-columns:1fr}body{padding:16px}}
-.icard{background:var(--surface);border:1px solid var(--border);padding:22px 24px;margin-bottom:14px}.icols{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.irow{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px;font-family:'Space Mono',monospace;font-size:9px}.irow .n{color:#8a9ab8}.irow .v{font-weight:700}.irow .na{color:#2a3a58}@media(max-width:900px){.icols{grid-template-columns:1fr}}
-.inote{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:'Space Mono',monospace;font-size:8px;line-height:1.7;color:var(--text-dim)}.footer a{color:inherit}
-.zbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px}.zbtns{display:flex;gap:4px;flex-wrap:wrap}.zbtns button{background:transparent;border:1px solid var(--border);color:#8a9ab8;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:5px 10px;cursor:pointer}.zbtns button:hover{border-color:#2a4a6a;color:#c8d4e8}.zbtns button.on{border-color:#00d4ff;color:#00d4ff}.zrange{font-family:'Space Mono',monospace;font-size:9px;color:#8a9ab8;letter-spacing:1px}.zhint{font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim);margin-bottom:12px}
-.heat{position:relative;user-select:none;-webkit-user-select:none}.heat canvas{display:block;width:100%;cursor:crosshair;touch-action:pan-y}.htip{position:absolute;pointer-events:none;display:none;background:#0a1220;border:1px solid #1a2a4a;padding:10px 12px;font-family:'Space Mono',monospace;font-size:9px;color:#c8d4e8;line-height:1.7;white-space:nowrap;z-index:2}.htip b{font-weight:700}
-.ihead{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}.ihead .sec{margin-bottom:0}.iact{display:flex;gap:10px;flex-wrap:wrap}
-.isdca{font-family:'Space Mono',monospace;font-size:10px;color:#8a9ab8;margin-bottom:14px;display:none}.isdca b{font-family:'Orbitron',monospace;font-size:14px}
-.irow .asof{font-weight:400;color:#5a6a8a;margin-right:6px;font-size:8px}.irow .lbl{font-weight:400;font-size:8px;margin-left:6px;opacity:.8}
-.btwrap{overflow-x:auto;margin:10px 0 16px}.btable{width:100%;border-collapse:collapse;font-family:'Space Mono',monospace;font-size:9px;white-space:nowrap}.btable th{color:var(--text-dim);font-weight:400;text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);letter-spacing:1px}.btable td{text-align:right;padding:7px 10px;color:#c8d4e8;border-bottom:1px solid rgba(26,42,74,.5)}.btable th:first-child,.btable td:first-child{text-align:left}.btable .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
-.rhead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin:6px 0 10px}.rtitle{font-family:'Orbitron',monospace;font-size:15px;font-weight:700;letter-spacing:1px}.rsub{font-family:'Space Mono',monospace;font-size:8px;color:var(--text-dim);margin-top:4px}
-.rchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.rchip{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;padding:4px 8px;border:1px solid}.rchip.z{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}.rchip.z input{accent-color:#448aff;margin:0}
-.rnow{font-family:'Space Mono',monospace;font-size:10px;color:#8a9ab8;text-align:right}.rnow b{font-family:'Orbitron',monospace;font-size:20px}
-.nav{position:relative;margin-top:8px;user-select:none;-webkit-user-select:none}.nav canvas{display:block;width:100%;height:46px;touch-action:none;cursor:crosshair}
-</style>
+<script type="module" src="assets/js/main.js"></script>
 </head>
 <body>
 <div class="wrap">
 <div class="ub" id="UB"></div>
-<div class="header"><div><div class="eyebrow">Personal Research · Not Investment Advice</div><h1>BITCOIN VALUATION INDEX</h1><div class="sub">Aggregate of aggregates · Z-Score composite · Fundamental · Technical · Sentiment indicators · 2011 – present</div></div><div class="hdate" id="hdate"></div></div>
+<header class="header">
+  <div><div class="eyebrow">Personal Research · Not Investment Advice</div><h1>BITCOIN VALUATION INDEX</h1>
+    <div class="sub">Aggregate of aggregates · on-chain, technical &amp; sentiment indicators · SDCA quantile model · accumulation / distribution DCA planner · 2011 – present</div></div>
+  <div class="hdate" id="hdate"></div>
+</header>
+<div class="live" id="live"><span><i class="dot off"></i>LIVE PRICE…</span></div>
+
 <div class="stats">
-  <div class="sc" style="--ac:#00d4ff;"><div class="sl">Current Z-Score</div><div style="font-family:'Orbitron',monospace;font-weight:700;font-size:32px;" id="sZ"></div><div class="ss" id="sSig"></div></div>
-  <div class="sc" style="--ac:#f5a623;"><div class="sl">Bitcoin Price</div><div style="font-family:'Orbitron',monospace;font-weight:700;font-size:24px;color:#f5a623;" id="sP"></div><div class="ss" id="sPsub"></div></div>
-  <div class="sc" style="--ac:#5a6a8a;"><div class="sl">Composite Risk</div><div style="font-family:'Orbitron',monospace;font-weight:700;font-size:32px;" id="sPct"></div><div class="ss" id="sRisk"></div></div>
-  <div class="sc" style="--ac:#f44336;"><div class="sl">Peak Z-Score (ATH Mania)</div><div style="font-family:'Orbitron',monospace;font-weight:700;font-size:32px;color:#f44336;" id="sMax"></div><div class="ss" id="sMaxD"></div></div>
+  <div class="sc" style="--ac:#00d4ff"><div class="sl">BVI Z-Score</div><div class="big" id="sZ">—</div><div class="ss" id="sSig"></div></div>
+  <div class="sc" style="--ac:#f5a623"><div class="sl">Bitcoin Price</div><div class="big" id="sP" style="color:#f5a623;font-size:24px">—</div><div class="ss" id="sPsub"></div></div>
+  <div class="sc" style="--ac:#5a6a8a"><div class="sl">BVI Composite Risk</div><div class="big" id="sPct">—</div><div class="ss" id="sRisk"></div></div>
+  <div class="sc" style="--ac:#c084fc"><div class="sl">SDCA Model Risk</div><div class="big" id="sSdca">—</div><div class="ss" id="sSdcaSub"></div></div>
+  <div class="sc link" id="planCard" style="--ac:#69f0ae" title="Open your DCA plan"><div class="sl">Your DCA Plan Today</div><div class="big" id="sPlan" style="font-size:17px;line-height:1.3">—</div><div class="ss" id="sPlanSub"></div></div>
 </div>
-<div class="mid">
-  <div class="gauge-card"><svg id="gauge" width="284" height="200" viewBox="0 0 284 200"></svg><div id="badge" style="margin-top:8px;padding:6px 24px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:3px;border:1px solid;text-align:center"></div></div>
-  <div class="info-card"><div><div class="sec">Valuation Color Scale</div><div class="cbar"></div><div class="cbar-lbl"><span>Extreme Buy</span><span>Undervalued</span><span>Fair Value</span><span>Elevated</span><span>Overvalued</span><span>Extreme Sell</span></div></div><div class="twocol"><div><div class="sec">Zone Definitions</div><div id="ztbl"></div></div><div><div class="sec">Distribution Statistics</div><div id="stbl"></div></div></div></div>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="overview">Overview</button>
+  <button data-tab="rainbow">Quantile Rainbow<span class="new">NEW</span></button>
+  <button data-tab="dca">DCA Plan<span class="new">NEW</span></button>
+  <button data-tab="indicators">Indicators</button>
+  <button data-tab="cycles">Cycles<span class="new">NEW</span></button>
+</nav>
+
+<!-- ═══════════════ OVERVIEW ═══════════════ -->
+<section class="pane" data-pane="overview">
+  <div class="mid">
+    <div class="gauge-card"><svg id="gauge" width="284" height="200" viewBox="0 0 284 200"></svg><div id="badge" style="margin-top:8px;padding:6px 24px;font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:3px;border:1px solid;text-align:center"></div></div>
+    <div class="info-card"><div><div class="sec">Valuation Color Scale</div><div class="cbar"></div><div class="cbar-lbl"><span>Extreme Buy</span><span>Undervalued</span><span>Fair Value</span><span>Elevated</span><span>Overvalued</span><span>Extreme Sell</span></div></div>
+      <div class="twocol"><div><div class="sec">Zone Definitions</div><div id="ztbl"></div></div><div><div class="sec">Distribution Statistics</div><div id="stbl"></div></div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="sec">Three models, one market · risk 0–100 % (low = cheap)</div>
+    <div class="models" id="modelBoxes"></div>
+    <div class="twrap"><table class="tbl" id="modelTable"></table></div>
+    <div class="note"><b>BVI</b> compares each date with the six previous years, using only past data: robust, but it under-reads the shrinking cycle tops of 2021 and 2025.
+      <b>SDCA model</b> is your teacher's composite, reproduced exactly (price position in the RAQQR quantile model + cost-basis P/L + on-chain risk composite): it flags those tops, partly because its price coefficients were fitted on the whole 2010–2026 history.
+      The <b>causal twin</b> swaps that price pillar for a past-only power law, to show what survives without hindsight. <b>Consensus</b> averages BVI and SDCA.</div>
+  </div>
+
+  <div class="cc">
+    <div class="zbar"><div class="zbtns" id="zbtns"><button data-d="90">3M</button><button data-d="180">6M</button><button data-d="365">1Y</button><button data-d="730">2Y</button><button data-d="1460">4Y</button><button data-d="0" class="on">ALL</button></div><div class="zrange" id="zrange"></div></div>
+    <div class="zhint" id="zhint"></div>
+    <div class="rhead"><div><div class="rtitle">COMPOSITE RISK</div><div class="rsub">BVI risk = normal CDF of the composite Z-score; SDCA risk = 50 − Z/3 × 50 on its ±3 scale. Low risk = cheaper / more buyable; high risk = expensive / less buyable. Valuation risk, not an allocation.</div></div><div class="rnow" id="rnow"></div></div>
+    <div class="rchips"><span class="rchip" style="color:#1de9b6;border-color:#1de9b6">0–25% BUY ZONE</span><span class="rchip" style="color:#b2ff59;border-color:#b2ff59">25–50% ACCUMULATE</span><span class="rchip" style="color:#ffc400;border-color:#ffc400">50–75% TRIM</span><span class="rchip" style="color:#ff5252;border-color:#ff5252">75–100% SELL ZONE</span>
+      <label class="rchip z" style="color:#c084fc;border-color:#c084fc"><input type="checkbox" id="ovSdca">SDCA MODEL</label>
+      <label class="rchip z" style="color:#f472b6;border-color:#f472b6"><input type="checkbox" id="ovCausal">CAUSAL TWIN</label>
+      <label class="rchip z" style="color:#448aff;border-color:#448aff"><input type="checkbox" id="showZ">Z LINE</label></div>
+    <div style="position:relative;height:360px"><canvas id="riskChart"></canvas></div>
+    <div class="nav"><canvas id="navCanvas"></canvas></div>
+    <div class="csub"></div>
+    <div class="ch"><div class="chtitle">BTC/USD PRICE · LOGARITHMIC · LINE COLORED BY BVI Z-SCORE</div><div class="leg"><div class="li"><div class="ld" style="background:#00f5ff"></div>Extreme Buy</div><div class="li"><div class="ld" style="background:#448aff"></div>Undervalued</div><div class="li"><div class="ld" style="background:#69f0ae"></div>Fair</div><div class="li"><div class="ld" style="background:#ffeb3b"></div>Elevated</div><div class="li"><div class="ld" style="background:#ff6d00"></div>Overvalued</div><div class="li"><div class="ld" style="background:#f44336"></div>Extreme Sell</div></div></div>
+    <div style="position:relative;height:320px"><canvas id="priceChart"></canvas></div>
+    <div class="csub"><div class="chtitle">BVI Z-SCORE · AGGREGATE OF AGGREGATES</div></div>
+    <div style="position:relative;height:190px"><canvas id="zChart"></canvas></div>
+    <div class="csub"><div class="chtitle">HEATMAP · BVI, SDCA MODEL AND EVERY INDICATOR (DIMMED = NOT IN THE COMPOSITE)</div></div>
+    <div class="heat" id="heat"><canvas id="heatCanvas"></canvas><div class="htip" id="htip"></div></div>
+  </div>
+</section>
+
+<!-- ═══════════════ QUANTILE RAINBOW ═══════════════ -->
+<section class="pane" data-pane="rainbow">
+  <div class="card">
+    <div class="title">ASYMMETRIC TAIL CURVATURE · QUANTILE RAINBOW</div>
+    <div class="lead">The price model of the SDCA app (RAQQR, Cowen 2026): the 1 % to 99 % quantiles of log price are quadratic curves in log time, with more curvature in the upper tail — tops get flatter each cycle. Bands use the published full-sample coefficients, so past bands were drawn with hindsight; after the last close the curves are only extended, not forecast.</div>
+    <div class="tiles" id="rbStats"></div>
+    <div class="zbar"><div class="zbtns" id="rbRange"><button data-r="all" class="on">ALL → 2030</button><button data-r="hist">HISTORY</button><button data-r="2017">2017 →</button><button data-r="2022">2022 →</button><button data-r="now">±2 YEARS</button></div><div class="leg" id="rbLegend"></div></div>
+    <div style="position:relative;height:520px;margin-top:10px"><canvas id="rbChart"></canvas></div>
+    <div class="zhint" style="margin-top:8px">Drag to zoom · Shift+drag to pan · double-click to reset</div>
+  </div>
+  <div class="card">
+    <div class="sec">Price of each quantile, today and at the end of each year (model extension)</div>
+    <div class="twrap"><table class="tbl" id="rbTable"></table></div>
+    <div class="note">Read a row across to see where a band boundary sits over time: the Q1 rail is the model's floor, the Q99 rail its ceiling. The band named next to a level is the one that starts there. These are levels of a fitted curve, not price targets.</div>
+  </div>
+</section>
+
+<!-- ═══════════════ DCA PLAN ═══════════════ -->
+<section class="pane" data-pane="dca">
+  <div class="card">
+    <div class="ihead"><div><div class="title">YOUR ACCUMULATION / DISTRIBUTION PLAN</div><div class="rsub">Each day, the risk of the chosen signal is read on your curve: above 0 you buy that % of your cash reserve, below 0 you sell that % of your BTC. Same mechanics as the SDCA app.</div></div>
+      <label class="field" style="min-width:260px">Signal<select id="dcaSignal"></select></label></div>
+    <div class="lead" id="dcaSignalAbout" style="margin-top:10px"></div>
+    <div class="today">
+      <div><div class="sec" id="todayLabel">Today's action</div><div class="action" id="todayAction">—</div><div class="amount" id="todayAmount"></div></div>
+      <div class="fields" style="margin:0"><label class="field">Cash reserve (USD)<input id="cashIn" type="number" min="0" step="100" inputmode="decimal"></label><label class="field">BTC held<input id="btcIn" type="number" min="0" step="0.001" inputmode="decimal"></label></div>
+    </div>
+    <div class="tiles" id="todayTiles"></div>
+    <div class="note">Stored only in this browser. The signals are daily closes; the live price at the top does not change them.</div>
+  </div>
+
+  <div class="card">
+    <div class="ihead"><div class="sec">Curve · % of cash bought (+) or % of BTC sold (−) per day, by risk</div><div class="zbtns" id="curvePresets"></div></div>
+    <div class="editor" id="curveEditor"></div>
+    <div class="note">Drag any point up or down (0.1 % steps). The dashed yellow line is today's risk. Green area = buying, red = selling; the shaded columns are the buy (0–25 %) and sell (75–100 %) zones.</div>
+  </div>
+
+  <div class="card">
+    <div class="ihead"><div class="sec">Backtest of your curve · daily, at each close</div><div class="zbtns" id="btQuick"><button data-y="2015">2015</button><button data-y="2018">2018</button><button data-y="2020">2020</button><button data-y="2022">2022</button><button data-y="2024">2024</button></div></div>
+    <div class="fields"><label class="field">Start date<input id="btStartIn" type="date"></label><label class="field">Starting cash (USD)<input id="btCashIn" type="number" min="1" step="1000"></label>
+      <div class="field">Display<label class="check" style="padding:8px 0"><input type="checkbox" id="btLog">LOG SCALE</label></div>
+      <div class="field">Export<button class="btn" id="btCsv" style="padding:7px">↓ CSV</button></div></div>
+    <div class="warn" id="btWarn" style="display:none"></div>
+    <div class="tiles" id="btTiles"></div>
+    <div style="position:relative;height:320px"><canvas id="curveChart"></canvas></div>
+    <div class="leg" id="curveLegend" style="margin-top:10px"></div>
+    <div class="note">Buy &amp; hold puts all the starting cash in on day 1; plain DCA spreads it evenly over every day of the window. Fees, spreads and taxes are ignored. Not investment advice.</div>
+  </div>
+
+  <div class="card">
+    <div class="sec">Optimizer · walk-forward</div>
+    <div class="lead">Tests 1,050 simple curves (buy rate, where buying stops, where selling starts, how hard it sells) on the window before the split date, keeps the best one, then shows how it did <b>after</b> the split, on data it never saw. A curve that only wins before the split is fitted to the past.</div>
+    <div class="fields" style="max-width:520px"><label class="field">Split date<input id="optSplitIn" type="date"></label><div class="field">&nbsp;<button class="btn primary" id="optRun">Run the optimizer</button></div></div>
+    <div id="optOut"></div>
+  </div>
+
+  <div class="card">
+    <div class="ihead"><div class="sec">Weekly strategies on the BVI · value ÷ amount invested</div><div class="zbtns" id="weeklyStart"><button data-y="2015">2015</button><button data-y="2017">2017</button><button data-y="2019">2019</button><button data-y="2021">2021</button><button data-y="2023">2023</button></div></div>
+    <div class="twrap"><table class="tbl" id="weeklyTable"></table></div>
+    <div style="position:relative;height:220px"><canvas id="weeklyChart"></canvas></div>
+    <div class="note">Every 7 days from 1 January of the chosen year, at that day's close. <b>DCA</b>: buy $100. <b>SDCA</b>: buy $100 × (1 − Z), capped at 3× and never below 0 — $300 at Z ≤ −2, $100 at Z = 0, nothing from Z = 1. <b>SDCA + take profit</b>: same buys, and sell 5 % of the BTC held each week while Z ≥ 2 (10 % while Z ≥ 3). <b>Risk zones</b>: buy $200 in the buy zone (risk &lt; 25 %), $100 when accumulating (25–50 %), nothing in the trim zone (50–75 %), and sell 2 % of the BTC held each week in the sell zone (≥ 75 %). Value = BTC × latest price + cash.</div>
+  </div>
+</section>
+
+<!-- ═══════════════ INDICATORS ═══════════════ -->
+<section class="pane" data-pane="indicators">
+  <div class="icard">
+    <div class="ihead"><div class="sec" id="ititle"></div><div class="iact"><div class="zbtns" id="imode"><button data-m="val">VALUATION</button><button data-m="sdca">SDCA SHEET</button></div><div class="zbtns"><button id="csvbtn">↓ CSV</button></div></div></div>
+    <div class="ihead" style="margin-bottom:10px"><div class="zbtns" id="ipresets"></div><div class="zrange" id="iselinfo"></div></div>
+    <div class="isdca" id="isdca"></div>
+    <div class="icols" id="icols"></div>
+    <div class="inote">Tick or untick an indicator to rebuild the BVI composite in your browser (every chart follows). <span class="badge b-opt">OPT</span> = published but not in the default composite. <span class="badge b-hs">HS</span> = built with data after each date (coefficients fitted on the full history, or full-history percentile ranks), so its past values are flattering. Values marked “as of” come from a source that publishes late; they are carried forward up to 10 days.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="sec">Correlation of the indicator z-scores (full history)</div>
+      <div class="corr"><canvas id="corrCanvas"></canvas><div class="htip" id="corrTip"></div></div>
+      <div class="zrange" id="corrStats" style="margin-top:10px;line-height:1.7"></div>
+    </div>
+    <div class="card">
+      <div class="sec">Method</div>
+      <div class="lead" style="margin:0">
+        <p><b>Orientation.</b> Each indicator is oriented so that a high reading means an expensive market (a high 52-week Sharpe ratio is treated as overheated).</p><br>
+        <p><b>Standardisation.</b> Each one becomes a rolling 6-year z-score using only past data; the power-law fit is refitted every day on past prices.</p><br>
+        <p><b>Composite.</b> Equal-weight mean of the selected indicators, re-standardised the same way. Weights are not optimised on purpose: that would fit the index to the past.</p><br>
+        <p><b>New in this version.</b> Three on-chain series from the SDCA app (ChartInspect cost-basis P/L, on-chain risk composite, realized P/L Sharpe) with history back to 2010–2011, and the RAQQR quantile model. The cost-basis P/L and the on-chain composite join the default composite; RAQQR and the realized P/L Sharpe are optional because they are rescaled with the whole history.</p><br>
+        <p><b>Approximations.</b> BEAM = price / 200-week moving average; Thermocap uses cumulative miner issuance (fees excluded). BGeometrics series start in 2022 and are published with a 7-day delay.</p><br>
+        <p>Full write-up, tests and limits: <a href="https://github.com/timothekintgen1-oss/btc-valuation-index#readme" target="_blank" rel="noopener">README on GitHub</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ CYCLES ═══════════════ -->
+<section class="pane" data-pane="cycles">
+  <div class="card">
+    <div class="title">HALVING CYCLES, SIDE BY SIDE</div>
+    <div class="lead">Every cycle starts on its halving day. Top: price as a multiple of the halving-day close (log scale). Bottom: the valuation or the drawdown at the same day of each cycle. The yellow line marks where the current cycle stands today. Four cycles are a tiny sample: similarities are descriptive, not a forecast.</div>
+    <div class="ch"><div class="chtitle">PRICE ÷ HALVING-DAY CLOSE</div><div class="leg" id="cyLegend"></div></div>
+    <div style="position:relative;height:330px"><canvas id="cyPrice"></canvas></div>
+    <div class="csub"><div class="ch" style="margin:0"><div class="chtitle" id="cyBottomTitle"></div><div class="zbtns" id="cyMode"><button data-m="z">BVI Z</button><button data-m="sdca">SDCA RISK</button><button data-m="dd">DRAWDOWN</button></div></div></div>
+    <div style="position:relative;height:240px"><canvas id="cyBottom"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="sec">Same day of the cycle, four cycles</div>
+    <div class="twrap"><table class="tbl" id="cyTable"></table></div>
+  </div>
+</section>
+
+<footer class="footer"><span>PERSONAL, NON-COMMERCIAL PROJECT · NOT INVESTMENT ADVICE · DATA: <a href="https://coinmetrics.io/community-network-data/" target="_blank" rel="noopener">COIN METRICS</a> (CC BY-NC 4.0) · <a href="https://bgeometrics.com/" target="_blank" rel="noopener">BGEOMETRICS</a> · <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener">ALTERNATIVE.ME</a> · <a href="https://chartinspect.com/" target="_blank" rel="noopener">CHARTINSPECT</a> VIA THE INVESTING CAMPUS SDCA APP · RAQQR COEFFICIENTS: COWEN (2026) · LIVE PRICE: COINBASE</span><span id="ftr"></span></footer>
 </div>
-<div class="icard"><div class="ihead"><div class="sec" id="ititle"></div><div class="iact"><div class="zbtns" id="imode"><button data-m="val">VALUATION</button><button data-m="sdca">SDCA SHEET</button></div><div class="zbtns"><button id="csvbtn">↓ CSV</button></div></div></div><div class="isdca" id="isdca"></div><div class="icols" id="icols"></div><div class="inote">Each indicator is oriented so that a higher reading means a more expensive market (a high 52-week Sharpe ratio is treated as overheated), then converted to a rolling 6-year z-score using only past data. The composite is the equal-weight average of available indicators, re-standardised the same way. BEAM is approximated as price / 200-week moving average; Thermocap uses cumulative miner issuance (fees excluded). BGeometrics series start in 2022 and are published with a 7-day delay; their last value is carried forward up to 10 days.</div></div>
-<div class="cc">
-  <div class="zbar"><div class="zbtns" id="zbtns"><button data-d="90">3M</button><button data-d="180">6M</button><button data-d="365">1Y</button><button data-d="730">2Y</button><button data-d="1460">4Y</button><button data-d="0" class="on">ALL</button></div><div class="zrange" id="zrange"></div></div>
-  <div class="zhint" id="zhint"></div>
-  <div class="rhead"><div><div class="rtitle">COMPOSITE RISK</div><div class="rsub">Risk = normal CDF of the composite Z-score. Low risk = cheaper / more buyable; high risk = expensive / less buyable. Valuation risk, not an allocation.</div></div><div class="rnow" id="rnow"></div></div>
-  <div class="rchips"><span class="rchip" style="color:#1de9b6;border-color:#1de9b6">0–25% BUY ZONE</span><span class="rchip" style="color:#b2ff59;border-color:#b2ff59">25–50% ACCUMULATE</span><span class="rchip" style="color:#ffc400;border-color:#ffc400">50–75% TRIM</span><span class="rchip" style="color:#ff5252;border-color:#ff5252">75–100% SELL ZONE</span><label class="rchip z" style="color:#448aff;border-color:#448aff"><input type="checkbox" id="showZ">SHOW Z LINE</label></div>
-  <div style="position:relative;height:360px;"><canvas id="riskChart"></canvas></div>
-  <div class="nav" id="nav"><canvas id="navCanvas"></canvas></div>
-  <div class="csub"></div>
-  <div class="ch"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);">BTC/USD PRICE · LOGARITHMIC · LINE COLORED BY Z-SCORE</div><div class="leg"><div class="li"><div class="ld" style="background:#00f5ff;"></div>Extreme Buy</div><div class="li"><div class="ld" style="background:#448aff;"></div>Undervalued</div><div class="li"><div class="ld" style="background:#69f0ae;"></div>Fair</div><div class="li"><div class="ld" style="background:#ffeb3b;"></div>Elevated</div><div class="li"><div class="ld" style="background:#ff6d00;"></div>Overvalued</div><div class="li"><div class="ld" style="background:#f44336;"></div>Extreme Sell</div></div></div>
-  <div style="position:relative;height:320px;"><canvas id="priceChart"></canvas></div>
-  <div class="csub"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);">VALUATION Z-SCORE · AGGREGATE OF AGGREGATES</div></div>
-  <div style="position:relative;height:190px;"><canvas id="zChart"></canvas></div>
-  <div class="csub"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);">INDICATOR HEATMAP · Z-SCORE BY INDICATOR</div></div>
-  <div class="heat" id="heat"><canvas id="heatCanvas"></canvas><div class="htip" id="htip"></div></div>
-</div>
-<div class="icard" id="bt"><div class="ihead"><div class="sec">SDCA backtest · value ÷ amount invested, weekly buys weighted by the Z-score</div><div class="zbtns" id="btstart"><button data-y="2015">2015</button><button data-y="2017">2017</button><button data-y="2019">2019</button><button data-y="2021">2021</button><button data-y="2023">2023</button></div></div>
-  <div class="btwrap"><table class="btable" id="bttab"></table></div>
-  <div style="position:relative;height:220px;"><canvas id="btChart"></canvas></div>
-  <div class="inote">Every 7 days from 1 January of the chosen year, at that day's close. <b>DCA</b>: buy $100. <b>SDCA</b>: buy $100 × (1 − Z), capped at 3× and never below 0 — $300 at Z ≤ −2, $100 at Z = 0, nothing from Z = 1. <b>SDCA + take profit</b>: same buys, and sell 5% of the BTC held each week while Z ≥ 2 (10% while Z ≥ 3); proceeds stay in cash. <b>Risk zones</b>: buy $200 in the buy zone (risk &lt; 25%), $100 when accumulating (25–50%), nothing in the trim zone (50–75%), and sell 2% of the BTC held each week in the sell zone (≥ 75%). Value = BTC × latest price + cash. The composite only uses past data each day; the one exception is the Rainbow Chart, whose published regression coefficients were fitted after the fact. Fees and taxes ignored. Not investment advice.</div>
-</div>
-<div class="footer"><span>PERSONAL, NON-COMMERCIAL PROJECT · NOT INVESTMENT ADVICE · DATA: <a href="https://coinmetrics.io/community-network-data/" target="_blank" rel="noopener">COIN METRICS</a> (CC BY-NC 4.0) · <a href="https://bgeometrics.com/" target="_blank" rel="noopener">BGEOMETRICS</a> · <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener">ALTERNATIVE.ME</a></span><span id="ftr"></span></div>
-</div>
-<script>
-
-// ══ DATA — data.json is rebuilt daily by .github/workflows/update-data.yml ══
-let LABELS=[],PRICE=[],Z_FULL=[],Z_SPARSE=[],N=0,DATA=null;
-async function loadData(){
-  const r=await fetch('data.json',{cache:'no-cache'});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const d=await r.json();
-  DATA=d;LABELS=d.dates;PRICE=d.price;Z_FULL=d.z;Z_SPARSE=d.z;N=LABELS.length;
-}
-
-// ══ SDCA SHEET CONVENTION — score = −Z (positive = value), labels from the sheet ══
-let MODE='val';try{MODE=localStorage.getItem('bvi-mode')||'val';}catch(e){}
-function sdcaLabel(s){if(s<=-1.5)return'No Value';if(s<0)return'Low Value';if(s===0)return'Neutral';if(s<1.5)return'Value';return'High Value';}
-const stale=(key,i)=>{const a=DATA.asof&&DATA.asof[key];return a&&LABELS[i]>a?a:null;};
-function renderIndicators(){
-  const sd=MODE==='sdca',last=N-1,sgn=v=>(v>0?'+':'')+v.toFixed(2);
-  document.querySelectorAll('#imode button').forEach(b=>b.classList.toggle('on',b.dataset.m===MODE));
-  document.getElementById('ititle').textContent=sd?'Indicators · SDCA score (positive = value, as in the sheet)':'Indicators · current Z-score (higher = more expensive)';
-  const box=document.getElementById('isdca'),cz=Z_FULL[last];
-  box.style.display=sd?'block':'none';
-  box.innerHTML=`SDCA SCORE (composite × −1): <b style="color:${zColor(cz)}">${sgn(-cz)}</b> · ${sdcaLabel(-cz).toUpperCase()}`;
-  document.getElementById('icols').innerHTML=['fundamental','technical','sentiment'].map(c=>{
-    const z=DATA.category_z[c][last];
-    const head=`<div class="sec">${c}${z!=null?` · <span style="color:${zColor(z)}">${sgn(sd?-z:z)}</span>`:''}</div>`;
-    return '<div>'+head+DATA.indicators.filter(x=>x.category===c).map(x=>{
-      const v=DATA.indicator_z[x.key][last],old=stale(x.key,last);
-      const val=v==null?'<span class="na">n/a</span>':`<span class="v" style="color:${zColor(v)}">${old?`<span class="asof" title="Latest source data: ${old}; value carried forward">as of ${old.slice(5)}</span>`:''}${sgn(sd?-v:v)}${sd?`<span class="lbl">${sdcaLabel(-v)}</span>`:''}</span>`;
-      return `<div class="irow" title="Source: ${x.source}"><span class="n">${x.label}</span>${val}</div>`;}).join('')+'</div>';
-  }).join('');
-}
-function downloadCSV(){
-  const keys=DATA.indicators.map(x=>x.key),cats=Object.keys(DATA.category_z);
-  const head=['date','price_usd','z','sdca_score',...cats.map(c=>'z_'+c),...keys.map(k=>'z_'+k)];
-  const f=v=>v==null?'':v;
-  const rows=LABELS.map((d,i)=>[d,PRICE[i],f(Z_FULL[i]),Z_FULL[i]==null?'':(-Z_FULL[i]).toFixed(2),...cats.map(c=>f(DATA.category_z[c][i])),...keys.map(k=>f(DATA.indicator_z[k][i]))].join(','));
-  const url=URL.createObjectURL(new Blob([head.join(',')+'\n'+rows.join('\n')],{type:'text/csv'}));
-  const a=document.createElement('a');a.href=url;a.download='btc-valuation-index-'+LABELS[N-1]+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-
-// ══ COMPOSITE RISK — normal CDF of the composite Z, in % ══
-function risk(z){if(z==null)return null;const t=1/(1+0.3275911*Math.abs(z)/Math.SQRT2),e=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-z*z/2);return 50*(1+(z<0?-e:e));}
-function riskZone(r){if(r<25)return{label:'BUY ZONE'};if(r<50)return{label:'ACCUMULATE'};if(r<75)return{label:'TRIM'};return{label:'SELL ZONE'};}
-function riskColor(r,a){a=a===undefined?1:a;const s=[[0,[0,230,160]],[30,[120,230,60]],[50,[200,230,40]],[62,[255,196,0]],[75,[255,120,0]],[90,[255,40,60]]];if(r<=0)r=0;for(let i=0;i<s.length-1;i++){if(r<=s[i+1][0]){const t=(r-s[i][0])/(s[i+1][0]-s[i][0]),c=s[i][1].map((v,k)=>Math.round(v+t*(s[i+1][1][k]-v)));return`rgba(${c[0]},${c[1]},${c[2]},${a})`;}}const l=s[s.length-1][1];return`rgba(${l[0]},${l[1]},${l[2]},${a})`;}
-
-// log-axis labels: powers of ten over >3 decades, 1-2-5 over >1 decade, every tick when zoomed in
-function logTick(v,i,ts){const d=Math.log10(this.max/this.min),m=Math.round(v/Math.pow(10,Math.floor(Math.log10(v)+1e-9))*1000)/1000;if(d>3)return m===1?fmt(v):'';if(d>1)return [1,2,5].includes(m)?fmt(v):'';const nx=ts[i+1];return nx&&Math.log10(nx.value/v)<d/16?'':fmt(v);}
-
-// ══ HELPERS ══
-function zColor(z,a){a=a===undefined?1:a;const s=[{v:-3,r:0,g:245,b:255},{v:-1.5,r:68,g:138,b:255},{v:0,r:105,g:240,b:174},{v:1.5,r:255,g:235,b:59},{v:2.5,r:255,g:109,b:0},{v:4,r:244,g:67,b:54}];if(z<=s[0].v)return`rgba(${s[0].r},${s[0].g},${s[0].b},${a})`;if(z>=s[s.length-1].v){const l=s[s.length-1];return`rgba(${l.r},${l.g},${l.b},${a})`;}for(let i=0;i<s.length-1;i++){if(z>=s[i].v&&z<=s[i+1].v){const t=(z-s[i].v)/(s[i+1].v-s[i].v);return`rgba(${Math.round(s[i].r+t*(s[i+1].r-s[i].r))},${Math.round(s[i].g+t*(s[i+1].g-s[i].g))},${Math.round(s[i].b+t*(s[i+1].b-s[i].b))},${a})`;}}return`rgba(105,240,174,${a})`;}
-function signal(z){if(z<-2)return{label:'EXTREME BUY',color:'#00f5ff'};if(z<-1)return{label:'UNDERVALUED',color:'#448aff'};if(z<1)return{label:'FAIR VALUE',color:'#69f0ae'};if(z<2)return{label:'ELEVATED',color:'#ffeb3b'};if(z<3)return{label:'OVERVALUED',color:'#ff6d00'};return{label:'EXTREME SELL',color:'#f44336'};}
-function fmt(n){if(n>=1e6)return'$'+(n/1e6).toFixed(2)+'M';if(n>=1e3)return'$'+n.toLocaleString('en-US',{maximumFractionDigits:0});return'$'+n.toFixed(2);}
-
-async function render(){
-  const bar=document.getElementById('UB');
-  const warn=msg=>{bar.textContent='⚠ '+msg;bar.style.display='block';bar.style.borderLeftColor='#ff6d00';bar.style.color='#ff6d00';};
-  try{await loadData();}catch(e){warn('Données indisponibles ('+e.message+')');return;}
-  const age=Math.floor((Date.now()-new Date(LABELS[N-1]+'T00:00:00Z').getTime())/864e5);
-  if(age>3)warn('Données au '+LABELS[N-1]+' — la mise à jour automatique a '+age+' jours de retard');
-
-  const cz=Z_FULL[N-1],cp=PRICE[N-1],sig_=signal(cz),allZ=Z_FULL.filter(v=>v!==null);
-  const pct=Math.round(allZ.filter(v=>v>cz).length/allZ.length*100);
-  const maxZ=Math.max(...allZ),mxI=Z_FULL.indexOf(maxZ),mxD=LABELS[mxI];
-
-  document.getElementById('hdate').textContent='LAST UPDATE: '+LABELS[N-1];
-  document.getElementById('sZ').textContent=cz.toFixed(2);document.getElementById('sZ').style.color=zColor(cz);
-  document.getElementById('sSig').textContent=sig_.label;document.getElementById('sSig').style.color=sig_.color;
-  document.getElementById('sP').textContent=fmt(cp);
-  document.getElementById('sPsub').textContent='Range: '+fmt(Math.min(...PRICE))+' – '+fmt(Math.max(...PRICE));
-  {const rk=risk(cz),zn=riskZone(rk);const e=document.getElementById('sPct');e.textContent=Math.round(rk)+'%';e.style.color=riskColor(rk);const s=document.getElementById('sRisk');s.textContent=zn.label;s.style.color=riskColor(rk);}
-  document.getElementById('sMax').textContent=maxZ.toFixed(2);document.getElementById('sMaxD').textContent=mxD;
-  document.getElementById('ftr').textContent=LABELS[0]+' → '+LABELS[N-1]+' · '+N.toLocaleString()+' DAILY OBSERVATIONS';
-  const bd=document.getElementById('badge');bd.textContent=sig_.label;bd.style.borderColor=sig_.color;bd.style.color=sig_.color;bd.style.background=sig_.color.replace(')',',0.15)').replace('rgb','rgba');
-  document.getElementById('ztbl').innerHTML=[{l:'Extreme Buy',r:'Z < −2',c:'#00f5ff'},{l:'Undervalued',r:'−2 ≤ Z < −1',c:'#448aff'},{l:'Fair Value',r:'−1 ≤ Z < 1',c:'#69f0ae'},{l:'Elevated',r:'1 ≤ Z < 2',c:'#ffeb3b'},{l:'Overvalued',r:'2 ≤ Z < 3',c:'#ff6d00'},{l:'Extreme Sell',r:'Z ≥ 3',c:'#f44336'}].map(z=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;"><div style="width:7px;height:7px;border-radius:50%;background:${z.c};flex-shrink:0;"></div><span style="font-family:'Space Mono',monospace;font-size:8px;color:#8a9ab8;min-width:90px;">${z.l}</span><span style="font-family:'Space Mono',monospace;font-size:8px;color:#4a5a78;">${z.r}</span></div>`).join('');
-  renderIndicators();
-  document.querySelectorAll('#imode button').forEach(b=>b.addEventListener('click',()=>{MODE=b.dataset.m;try{localStorage.setItem('bvi-mode',MODE);}catch(e){}renderIndicators();}));
-  document.getElementById('csvbtn').addEventListener('click',downloadCSV);
-  const zM=(allZ.reduce((a,b)=>a+b,0)/allZ.length).toFixed(2),zS=Math.sqrt(allZ.reduce((a,b)=>a+(b-parseFloat(zM))**2,0)/allZ.length).toFixed(2);
-  document.getElementById('stbl').innerHTML=[{k:'Mean',v:zM},{k:'Std Dev',v:zS},{k:'Min Z',v:Math.min(...allZ).toFixed(2)},{k:'Max Z',v:maxZ.toFixed(2)},{k:'Current',v:cz.toFixed(2)},{k:'N Obs',v:N.toLocaleString()}].map(s=>`<div style="display:flex;justify-content:space-between;margin-bottom:7px;gap:12px;"><span style="font-family:'Space Mono',monospace;font-size:8px;color:#4a5a78;">${s.k}</span><span style="font-family:'Space Mono',monospace;font-size:8px;color:#8a9ab8;">${s.v}</span></div>`).join('');
-
-  // GAUGE
-  !function(){const svg=document.getElementById('gauge'),cx=142,cy=155,r=108,sw=240,sd=-210,zMin=-3,zMax=5.5,toR=d=>d*Math.PI/180,pt=(d,ra)=>({x:cx+ra*Math.cos(toR(d)),y:cy+ra*Math.sin(toR(d))}),hx=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)],cs=[{t:0,c:'#00f5ff'},{t:.2,c:'#448aff'},{t:.42,c:'#69f0ae'},{t:.58,c:'#ffeb3b'},{t:.75,c:'#ff6d00'},{t:1,c:'#f44336'}];function lerp(t){for(let i=0;i<cs.length-1;i++){if(t>=cs[i].t&&t<=cs[i+1].t){const tt=(t-cs[i].t)/(cs[i+1].t-cs[i].t),[r1,g1,b1]=hx(cs[i].c),[r2,g2,b2]=hx(cs[i+1].c);return`rgb(${Math.round(r1+tt*(r2-r1))},${Math.round(g1+tt*(g2-g1))},${Math.round(b1+tt*(b2-b1))})`;}};return cs[5].c;}
-  const zToT=z=>Math.max(0,Math.min(1,(z-zMin)/(zMax-zMin))),zToDeg=z=>sd+zToT(z)*sw;let h='';const bs=pt(sd,r),be=pt(sd+sw,r);h+=`<path d="M${bs.x},${bs.y} A${r},${r} 0 1 1 ${be.x},${be.y}" fill="none" stroke="#131e32" stroke-width="14"/>`;for(let i=0;i<100;i++){const t1=i/100,t2=(i+1)/100,p1=pt(sd+t1*sw,r),p2=pt(sd+t2*sw,r);h+=`<path d="M${p1.x},${p1.y} A${r},${r} 0 0 1 ${p2.x},${p2.y}" fill="none" stroke="${lerp((t1+t2)/2)}" stroke-width="12" opacity=".88"/>`;}[-2,-1,0,1,2,3].forEach(v=>{const d=zToDeg(v),ii=pt(d,r-20),o=pt(d,r+4);h+=`<line x1="${ii.x}" y1="${ii.y}" x2="${o.x}" y2="${o.y}" stroke="#243355" stroke-width="1.5"/>`;});
-  let eL=cz,eD=LABELS[N-1];for(let i=N-1;i>=Math.max(0,N-365);i--){if(Z_FULL[i]!=null&&Z_FULL[i]<eL){eL=Z_FULL[i];eD=LABELS[i];}}const dot=pt(zToDeg(eL),r),bx=4,by=4;h+=`<rect x="${bx}" y="${by}" width="116" height="52" rx="1" fill="#060c18" stroke="#00f5ff" stroke-width=".9" opacity=".95"/><text x="${bx+6}" y="${by+14}" font-family="Space Mono,monospace" font-size="7" fill="#00f5ff" letter-spacing="1">RECENT EXTREME LOW</text><text x="${bx+6}" y="${by+30}" font-family="Orbitron,monospace" font-size="13" font-weight="700" fill="#00f5ff">Z = ${eL.toFixed(2)}</text><text x="${bx+6}" y="${by+44}" font-family="Space Mono,monospace" font-size="7" fill="#2a4a6a">${eD}</text><line x1="${bx+40}" y1="${by+52}" x2="${dot.x.toFixed(1)}" y2="${dot.y.toFixed(1)}" stroke="#00f5ff" stroke-width=".9" stroke-dasharray="3,2.5" opacity=".7"/><circle cx="${dot.x.toFixed(1)}" cy="${dot.y.toFixed(1)}" r="4" fill="#00f5ff" opacity=".9"/><circle cx="${dot.x.toFixed(1)}" cy="${dot.y.toFixed(1)}" r="8" fill="none" stroke="#00f5ff" stroke-width="1" opacity=".3"/>`;
-  const nR=toR(zToDeg(cz)),tip={x:cx+90*Math.cos(nR),y:cy+90*Math.sin(nR)},pp=nR+Math.PI/2,bl={x:cx+4*Math.cos(pp),y:cy+4*Math.sin(pp)},br={x:cx-4*Math.cos(pp),y:cy-4*Math.sin(pp)},nc=zColor(cz);h+=`<polygon points="${tip.x},${tip.y} ${bl.x},${bl.y} ${br.x},${br.y}" fill="${nc}" opacity=".95"/><circle cx="${cx}" cy="${cy}" r="9" fill="#0b1424" stroke="${nc}" stroke-width="2.5"/><text x="${cx}" y="${cy-22}" font-family="Orbitron,monospace" font-size="28" font-weight="700" fill="${nc}" text-anchor="middle">${cz.toFixed(2)}</text><text x="${cx}" y="${cy-6}" font-family="Space Mono,monospace" font-size="8" fill="#4a5a78" text-anchor="middle" letter-spacing="2">Z-SCORE</text><text x="18" y="${cy+8}" font-family="Space Mono,monospace" font-size="8" fill="#00f5ff" text-anchor="middle">−3</text><text x="266" y="${cy+8}" font-family="Space Mono,monospace" font-size="8" fill="#f44336" text-anchor="middle">+5.5</text>`;svg.innerHTML=h;}();
-
-  // CHARTS
-  Chart.defaults.color='#4a5a78';Chart.defaults.font.family='Space Mono,monospace';Chart.defaults.font.size=8;
-  const grid={color:'rgba(26,42,74,0.5)',lineWidth:.5},bord={color:'#1a2a4a'},tip2={backgroundColor:'#0a1220',borderColor:'#1a2a4a',borderWidth:1,titleFont:{family:'Space Mono,monospace',size:9},bodyFont:{family:'Rajdhani,sans-serif',size:13},padding:12,cornerRadius:0,displayColors:true,boxPadding:4};
-  const pC=Z_FULL.map(z=>zColor(z||0,.9)),fW=68,aF=s=>{s.width=fW;},xT=function(v){const s=this.max-this.min,l=LABELS[v];return !l?null:s>1460?l.slice(0,4):s>120?l.slice(0,7):l;};
-  const TOUCH=matchMedia('(pointer:coarse)').matches;
-  const zoomOpt={limits:{x:{min:0,max:N-1,minRange:14}},
-    zoom:{wheel:{enabled:true,modifierKey:'ctrl'},pinch:{enabled:true},drag:{enabled:!TOUCH,backgroundColor:'rgba(0,212,255,0.08)',borderColor:'rgba(0,212,255,0.5)',borderWidth:1},mode:'x',onZoomComplete:({chart})=>syncFrom(chart)},
-    pan:{enabled:true,mode:'x',modifierKey:TOUCH?null:'shift',onPanComplete:({chart})=>syncFrom(chart)}};
-  const ptR=c=>{const s=c.chart.scales.x;return s&&s.max-s.min<=120?2:0;};
-  const CHARTS=[];let VIEW={a:0,b:N-1},heat=null,nav=null;
-  function applyRange(min,max,src){
-    const full=min==null;
-    CHARTS.forEach(c=>{if(c===src)return;c.options.scales.x.min=full?undefined:min;c.options.scales.x.max=full?undefined:max;c.update('none');});
-    const a=full?0:Math.max(0,Math.round(min)),b=full?N-1:Math.min(N-1,Math.round(max));
-    VIEW={a,b};if(heat)heat.draw();if(nav)nav.draw();
-    document.getElementById('zrange').textContent=LABELS[a]+' → '+LABELS[b]+' · '+(b-a+1).toLocaleString()+' days';
-  }
-  function syncFrom(chart){
-    const {min,max}=chart.scales.x;
-    chart.options.scales.x.min=min;chart.options.scales.x.max=max;
-    applyRange(min,max,chart);
-    document.querySelectorAll('#zbtns button').forEach(b=>b.classList.remove('on'));
-  }
-  const zFC=(()=>{const o=[];let l=0;for(const z of Z_SPARSE){if(z!==null)l=z;o.push(zColor(l,.9));}return o;})();
-
-  CHARTS.push(new Chart(document.getElementById('priceChart').getContext('2d'),{type:'line',data:{labels:LABELS,datasets:[{data:PRICE,borderWidth:1.5,pointRadius:ptR,pointHoverRadius:4,pointBorderWidth:0,pointBackgroundColor:c=>zColor(Z_FULL[c.dataIndex]||0,.9),tension:0,fill:false,segment:{borderColor:c=>pC[c.p0DataIndex]||'#69f0ae'}}]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},zoom:zoomOpt,tooltip:{...tip2,callbacks:{title:i=>i[0].label,label:i=>{const s=signal(Z_FULL[i.dataIndex]||0);return['  Price:   '+fmt(PRICE[i.dataIndex]),'  Z-Score: '+(Z_FULL[i.dataIndex]||0).toFixed(2),'  Signal:  '+s.label];},labelColor:i=>({borderColor:'transparent',backgroundColor:pC[i.dataIndex]})}}},scales:{x:{grid,border:bord,ticks:{maxTicksLimit:innerWidth<600?4:12,autoSkipPadding:16,maxRotation:0,color:'#2a3a58',callback:xT}},y:{type:'logarithmic',grid,border:bord,afterFit:aF,ticks:{color:'#2a3a58',callback:logTick}}}}}));
-
-  const zP={id:'zP',beforeDraw(ch){const{ctx:c,chartArea:{left:l,right:r},scales:{y}}=ch;[{lo:-10,hi:-2,c:'rgba(0,245,255,0.05)'},{lo:-2,hi:-1,c:'rgba(68,138,255,0.06)'},{lo:-1,hi:1,c:'rgba(105,240,174,0.04)'},{lo:1,hi:2,c:'rgba(255,235,59,0.06)'},{lo:2,hi:3,c:'rgba(255,109,0,0.07)'},{lo:3,hi:10,c:'rgba(244,67,54,0.09)'}].forEach(z=>{if(z.hi<=y.min||z.lo>=y.max)return;c.fillStyle=z.c;const top=y.getPixelForValue(Math.min(z.hi,y.max)),bot=y.getPixelForValue(Math.max(z.lo,y.min));c.fillRect(l,top,r-l,bot-top);});const y0=y.getPixelForValue(0);if(0>y.min&&0<y.max){c.save();c.strokeStyle='rgba(105,240,174,0.18)';c.lineWidth=1;c.setLineDash([5,5]);c.beginPath();c.moveTo(l,y0);c.lineTo(r,y0);c.stroke();c.restore();}}};
-
-  CHARTS.push(new Chart(document.getElementById('zChart').getContext('2d'),{type:'line',data:{labels:LABELS,datasets:[{data:Z_SPARSE,borderWidth:1.5,pointRadius:ptR,pointHoverRadius:4,pointBorderWidth:0,pointBackgroundColor:c=>zColor(Z_FULL[c.dataIndex]||0,.9),tension:0,spanGaps:true,segment:{borderColor:c=>zFC[c.p0DataIndex]||'#69f0ae'},fill:{target:'origin',above:c=>{const g=c.chart.ctx.createLinearGradient(0,c.chart.chartArea.top,0,c.chart.chartArea.bottom);g.addColorStop(0,'rgba(255,109,0,0.18)');g.addColorStop(1,'rgba(255,109,0,0)');return g;},below:c=>{const g=c.chart.ctx.createLinearGradient(0,c.chart.chartArea.top,0,c.chart.chartArea.bottom);g.addColorStop(0,'rgba(0,212,255,0)');g.addColorStop(1,'rgba(0,212,255,0.14)');return g;}}}]},plugins:[zP],options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},zoom:zoomOpt,tooltip:{...tip2,callbacks:{title:i=>i[0].label,label:i=>{if(i.raw===null)return null;const s=signal(i.raw);return['  Z-Score: '+i.raw.toFixed(2),'  Signal:  '+s.label];},labelColor:i=>({borderColor:'transparent',backgroundColor:zFC[i.dataIndex]})}}},scales:{x:{grid,border:bord,ticks:{maxTicksLimit:innerWidth<600?4:12,autoSkipPadding:16,maxRotation:0,color:'#2a3a58',callback:xT}},y:{grid,border:bord,afterFit:aF,ticks:{color:'#2a3a58',callback:v=>v.toFixed(1)}}}}}));
-
-  // COMPOSITE RISK CHART
-  const RISK=Z_FULL.map(risk),rC=RISK.map(r=>riskColor(r==null?50:r,1));
-  document.getElementById('rnow').innerHTML=`${LABELS[N-1]}<br><b style="color:${riskColor(RISK[N-1])}">${RISK[N-1].toFixed(1)}%</b> · ${riskZone(RISK[N-1]).label}`;
-  const rBands={id:'rBands',beforeDatasetsDraw(ch){const{ctx:c,chartArea:{left:l,right:r},scales:{yr}}=ch;[[0,25,'rgba(0,150,136,0.20)'],[25,50,'rgba(56,142,60,0.13)'],[50,75,'rgba(255,160,0,0.08)'],[75,100,'rgba(229,57,53,0.15)']].forEach(([lo,hi,col])=>{c.fillStyle=col;const top=yr.getPixelForValue(hi),bot=yr.getPixelForValue(lo);c.fillRect(l,top,r-l,bot-top);});c.save();c.strokeStyle='rgba(200,212,232,0.25)';c.setLineDash([4,4]);c.lineWidth=1;[25,50,75].forEach(v=>{const y=yr.getPixelForValue(v);c.beginPath();c.moveTo(l,y);c.lineTo(r,y);c.stroke();});c.restore();}};
-  const riskChart=new Chart(document.getElementById('riskChart').getContext('2d'),{type:'line',data:{labels:LABELS,datasets:[
-      {label:'Risk',data:RISK,yAxisID:'yr',borderWidth:2,pointRadius:ptR,pointHoverRadius:4,pointBorderWidth:0,pointBackgroundColor:c=>rC[c.dataIndex],tension:0,segment:{borderColor:c=>rC[c.p0DataIndex]}},
-      {label:'Price',data:PRICE,yAxisID:'yp',borderColor:'rgba(235,240,250,0.85)',borderWidth:1.2,pointRadius:0,tension:0},
-      {label:'Z',data:Z_FULL,yAxisID:'yz',borderColor:'rgba(68,138,255,0.55)',borderWidth:1,pointRadius:0,tension:0,hidden:true}]},
-    plugins:[rBands],
-    options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},zoom:zoomOpt,tooltip:{...tip2,filter:i=>i.datasetIndex===0,callbacks:{title:i=>i[0].label,label:i=>{const k=i.dataIndex,r=RISK[k];return['  Risk:    '+(r==null?'n/a':r.toFixed(1)+'% · '+riskZone(r).label),'  Price:   '+fmt(PRICE[k]),'  Z-Score: '+(Z_FULL[k]==null?'n/a':Z_FULL[k].toFixed(2))];},labelColor:i=>({borderColor:'transparent',backgroundColor:rC[i.dataIndex]})}}},
-      scales:{x:{grid,border:bord,ticks:{maxTicksLimit:innerWidth<600?4:12,autoSkipPadding:16,maxRotation:0,color:'#2a3a58',callback:xT}},
-        yp:{type:'logarithmic',position:'left',grid:{display:false},border:bord,afterFit:aF,ticks:{color:'#4a5a78',callback:logTick}},
-        yr:{position:'right',min:0,max:100,grid:{display:false},border:bord,afterFit:s=>{s.width=40;},ticks:{stepSize:25,color:'#4a5a78',callback:v=>v+'%'}},
-        yz:{display:false,min:-3.5,max:3.5}}}});
-  CHARTS.push(riskChart);
-  document.getElementById('showZ').addEventListener('change',e=>{riskChart.setDatasetVisibility(2,e.target.checked);riskChart.update('none');});
-
-  // NAVIGATOR — full history; drag to select, drag the window to move it, drag its edges to resize
-  nav=(()=>{
-    const cv=document.getElementById('navCanvas'),ctx=cv.getContext('2d'),H=46;
-    let drag=null;
-    const geo=()=>{const ca=riskChart.chartArea;return{l:ca.left,r:ca.right};};
-    const xOf=i=>{const{l,r}=geo();return l+i/(N-1)*(r-l);},iOf=x=>{const{l,r}=geo();return Math.round(Math.min(1,Math.max(0,(x-l)/(r-l)))*(N-1));};
-    let lp=Math.log(Math.min(...PRICE)),hp=Math.log(Math.max(...PRICE));
-    function draw(){
-      const W=cv.clientWidth,dpr=devicePixelRatio||1;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-      const{l,r}=geo();ctx.fillStyle='#0d1830';ctx.fillRect(l,0,r-l,H);
-      const step=Math.max(1,Math.floor(N/(r-l)));
-      ctx.lineWidth=1;ctx.strokeStyle='rgba(235,240,250,0.45)';ctx.beginPath();for(let i=0;i<N;i+=step){const x=xOf(i),y=H-3-(Math.log(PRICE[i])-lp)/(hp-lp)*(H-6);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
-      for(let i=step;i<N;i+=step){if(RISK[i]==null||RISK[i-step]==null)continue;ctx.strokeStyle=rC[i];ctx.beginPath();ctx.moveTo(xOf(i-step),H-3-RISK[i-step]/100*(H-6));ctx.lineTo(xOf(i),H-3-RISK[i]/100*(H-6));ctx.stroke();}
-      const a=xOf(VIEW.a),b=xOf(VIEW.b);
-      ctx.fillStyle='rgba(6,12,24,0.6)';ctx.fillRect(l,0,a-l,H);ctx.fillRect(b,0,r-b,H);
-      ctx.strokeStyle='#00d4ff';ctx.lineWidth=1;ctx.strokeRect(a+.5,.5,b-a,H-1);
-      ctx.fillStyle='#00d4ff';ctx.fillRect(a-2,H/2-8,4,16);ctx.fillRect(b-2,H/2-8,4,16);
-    }
-    let raf=0,pending=null;
-    const flush=()=>{cancelAnimationFrame(raf);if(!pending)return;const[a,b]=pending;pending=null;applyRange(a,b,null);document.querySelectorAll('#zbtns button').forEach(x=>x.classList.remove('on'));};
-    const push=(a,b)=>{a=Math.max(0,a);b=Math.min(N-1,b);if(b-a<14)return;pending=[a,b];cancelAnimationFrame(raf);raf=requestAnimationFrame(flush);};  // live while dragging, flushed on release
-    cv.addEventListener('pointerdown',e=>{
-      const x=e.clientX-cv.getBoundingClientRect().left,a=xOf(VIEW.a),b=xOf(VIEW.b);
-      const full=VIEW.b-VIEW.a>=(N-1)*0.95;  // whole history shown: a drag draws a new window
-      drag=!full&&Math.abs(x-a)<8?{m:'l'}:!full&&Math.abs(x-b)<8?{m:'r'}:!full&&x>a&&x<b?{m:'move',x0:x,a:VIEW.a,b:VIEW.b}:{m:'new',x0:x};
-      try{cv.setPointerCapture(e.pointerId);}catch(_){}  // keep tracking outside the strip
-    });
-    cv.addEventListener('pointermove',e=>{
-      const x=e.clientX-cv.getBoundingClientRect().left,a=xOf(VIEW.a),b=xOf(VIEW.b);
-      cv.style.cursor=Math.abs(x-a)<8||Math.abs(x-b)<8?'ew-resize':(x>a&&x<b)?'grab':'crosshair';
-      if(!drag)return;
-      if(drag.m==='l')push(Math.min(iOf(x),VIEW.b-14),VIEW.b);
-      else if(drag.m==='r')push(VIEW.a,Math.max(iOf(x),VIEW.a+14));
-      else if(drag.m==='move'){const d=iOf(x)-iOf(drag.x0),w=drag.b-drag.a;let na=Math.min(Math.max(0,drag.a+d),N-1-w);push(na,na+w);}
-      else push(Math.min(iOf(x),iOf(drag.x0)),Math.max(iOf(x),iOf(drag.x0)));
-    });
-    const end=()=>{drag=null;flush();};cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
-    cv.addEventListener('dblclick',()=>document.querySelector('#zbtns button[data-d="0"]').click());
-    addEventListener('resize',()=>setTimeout(draw,150));
-    return{draw};
-  })();
-
-  // range presets, double-click to reset
-  document.querySelectorAll('#zbtns button').forEach(b=>b.addEventListener('click',()=>{
-    const d=+b.dataset.d;
-    document.querySelectorAll('#zbtns button').forEach(x=>x.classList.toggle('on',x===b));
-    if(!d){applyRange(null,null,null);return;}
-    applyRange(Math.max(0,N-d),N-1,null);
-  }));
-  // let the page scroll vertically over the charts on touch screens (pinch and horizontal pan still go to the chart)
-  CHARTS.forEach(c=>{c.canvas.style.touchAction='pan-y';});
-  CHARTS.forEach(c=>c.canvas.addEventListener('dblclick',()=>document.querySelector('#zbtns button[data-d="0"]').click()));
-  document.getElementById('zhint').textContent=TOUCH?'Pinch to zoom · drag to pan · tap a preset to jump':'Drag to zoom · Shift+drag to pan · Ctrl/pinch+scroll to zoom · double-click to reset';
-  // INDICATOR HEATMAP — one row per indicator, one column per pixel of the visible range
-  heat=(()=>{
-    const SHORT={mvrv_z:'MVRV Z',aviv:'AVIV',thermocap:'Thermocap',nupl:'NUPL',rhodl:'RHODL',price_tools:'CVDD/TP',sth_sopr:'STH-SOPR',power_law:'Power Law',sharpe_52w:'Sharpe 52W',rsi_monthly:'RSI 1M',days_higher:'Days High',beam:'BEAM',rainbow:'Rainbow',fear_greed:'F&G'};
-    const RH=innerWidth<600?11:13,GAP=6;
-    const rows=[{label:'COMPOSITE',full:'Composite Z-Score',z:DATA.z,bold:true}];
-    ['fundamental','technical','sentiment'].forEach(c=>{
-      rows.push({gap:true});
-      DATA.indicators.filter(x=>x.category===c).forEach(x=>rows.push({key:x.key,label:SHORT[x.key]||x.label,full:x.label+' · '+c,z:DATA.indicator_z[x.key]}));
-    });
-    let y=0;rows.forEach(r=>{r.y=y;y+=r.gap?GAP:RH;});
-    const H=y,wrap=document.getElementById('heat'),cv=document.getElementById('heatCanvas'),ctx=cv.getContext('2d'),tip=document.getElementById('htip');
-    let sel=null;
-    const area=()=>{const ca=CHARTS[0].chartArea;return{l:ca.left,r:ca.right};};
-    const idxAt=x=>{const {l,r}=area();return VIEW.a+Math.floor((x-l)/(r-l)*(VIEW.b-VIEW.a+1));};
-    function draw(){
-      const W=wrap.clientWidth,dpr=devicePixelRatio||1;
-      cv.width=W*dpr;cv.height=H*dpr;cv.style.height=H+'px';
-      ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-      const {l,r}=area(),pw=Math.max(1,Math.round(r-l)),span=VIEW.b-VIEW.a+1;
-      ctx.font="8px 'Space Mono',monospace";ctx.textBaseline='middle';ctx.textAlign='right';
-      rows.forEach(row=>{
-        if(row.gap)return;
-        ctx.fillStyle=row.bold?'#c8d4e8':'#6a7a98';ctx.fillText(row.label,l-8,row.y+RH/2);
-        ctx.fillStyle='#0d1830';ctx.fillRect(l,row.y,pw,RH-1);
-        const cols=Math.min(pw,span);
-        for(let c=0;c<cols;c++){
-          const i0=VIEW.a+Math.floor(c*span/cols),i1=VIEW.a+Math.floor((c+1)*span/cols);
-          let s=0,n=0;for(let i=i0;i<i1;i++){const v=row.z[i];if(v!=null){s+=v;n++;}}
-          if(!n)continue;
-          const x0=l+c*pw/cols,x1=l+(c+1)*pw/cols;
-          ctx.fillStyle=zColor(s/n,row.key&&stale(row.key,i1-1)?.35:1);ctx.fillRect(Math.floor(x0),row.y,Math.ceil(x1)-Math.floor(x0),RH-1);
-        }
-      });
-      if(sel){ctx.fillStyle='rgba(0,212,255,0.12)';ctx.strokeStyle='rgba(0,212,255,0.6)';const x=Math.min(sel.x0,sel.x1),w=Math.abs(sel.x1-sel.x0);ctx.fillRect(x,0,w,H);ctx.strokeRect(x+.5,.5,w,H-1);}
-    }
-    function hover(e){
-      const b=cv.getBoundingClientRect(),x=e.clientX-b.left,yy=e.clientY-b.top,{l,r}=area();
-      const row=rows.find(o=>!o.gap&&yy>=o.y&&yy<o.y+RH);
-      if(!row||x<l||x>r){tip.style.display='none';return;}
-      const i=Math.min(VIEW.b,Math.max(VIEW.a,idxAt(x))),v=row.z[i];
-      const old=row.key&&stale(row.key,i);
-      tip.innerHTML=`<b>${LABELS[i]}</b><br>${row.full}<br>Z-Score: <b style="color:${v==null?'#6a7a98':zColor(v)}">${v==null?'n/a':v.toFixed(2)}</b>${v==null?'':'<br>Signal: '+signal(v).label+'<br>SDCA: '+(-v>0?'+':'')+(-v).toFixed(2)+' · '+sdcaLabel(-v)}${old?'<br><span style="color:#f5a623">Carried forward from '+old+'</span>':''}`;
-      tip.style.display='block';
-      const tw=tip.offsetWidth;tip.style.left=(x+14+tw>b.width?x-14-tw:x+14)+'px';tip.style.top=Math.max(0,yy-20)+'px';
-    }
-    cv.addEventListener('mousemove',e=>{hover(e);if(sel){sel.x1=e.clientX-cv.getBoundingClientRect().left;draw();}});
-    cv.addEventListener('mouseleave',()=>{tip.style.display='none';});
-    cv.addEventListener('mousedown',e=>{const x=e.clientX-cv.getBoundingClientRect().left;sel={x0:x,x1:x};});
-    document.addEventListener('mouseup',()=>{
-      if(!sel)return;const {l,r}=area(),x0=Math.max(l,Math.min(sel.x0,sel.x1)),x1=Math.min(r,Math.max(sel.x0,sel.x1));sel=null;
-      if(x1-x0<4){draw();return;}
-      const a=idxAt(x0),b=Math.max(a+13,idxAt(x1));
-      CHARTS.forEach(c=>{c.options.scales.x.min=a;c.options.scales.x.max=Math.min(N-1,b);});
-      applyRange(a,Math.min(N-1,b),null);
-      document.querySelectorAll('#zbtns button').forEach(x=>x.classList.remove('on'));
-    });
-    cv.addEventListener('dblclick',()=>document.querySelector('#zbtns button[data-d="0"]').click());
-    cv.addEventListener('click',e=>{if(matchMedia('(pointer:coarse)').matches)hover(e);});
-    addEventListener('resize',()=>setTimeout(draw,150));  // after Chart.js has resized
-    return {draw};
-  })();
-
-  applyRange(null,null,null);
-
-  // SDCA BACKTEST
-  const btC=new Chart(document.getElementById('btChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{...tip2,callbacks:{label:i=>'  '+i.dataset.label+': ×'+i.raw.toFixed(2)}}},scales:{x:{grid,border:bord,ticks:{maxTicksLimit:innerWidth<600?4:8,maxRotation:0,color:'#2a3a58',callback:function(v){return this.getLabelForValue(v).slice(0,7);}}},y:{grid,border:bord,afterFit:aF,ticks:{color:'#2a3a58',callback:v=>'×'+v.toFixed(1)}}}}});
-  const STRATS=[{name:'DCA',color:'#8a9ab8',buy:()=>100,sell:()=>0},
-    {name:'SDCA',color:'#00d4ff',buy:z=>100*Math.max(0,Math.min(3,1-z)),sell:()=>0},
-    {name:'SDCA + take profit',color:'#f5a623',buy:z=>100*Math.max(0,Math.min(3,1-z)),sell:z=>z>=3?.10:z>=2?.05:0},
-    {name:'Risk zones',color:'#b2ff59',buy:z=>{const r=risk(z);return r<25?200:r<50?100:0;},sell:z=>risk(z)>=75?.02:0}];
-  function backtest(year){
-    document.querySelectorAll('#btstart button').forEach(b=>b.classList.toggle('on',+b.dataset.y===year));
-    const s0=LABELS.findIndex((d,i)=>d>=year+'-01-01'&&Z_FULL[i]!=null);
-    const res=STRATS.map(st=>({...st,inv:0,btc:0,bought:0,cash:0,vals:[]})),lab=[];
-    for(let i=s0;i<N;i++){
-      const p=PRICE[i],z=Z_FULL[i],week=(i-s0)%7===0;
-      res.forEach(r=>{
-        if(week&&z!=null){const q=r.sell(z)*r.btc;r.btc-=q;r.cash+=q*p;const usd=r.buy(z);r.inv+=usd;r.btc+=usd/p;r.bought+=usd/p;}
-        if(week||i===N-1)r.vals.push((r.btc*p+r.cash)/r.inv);
-      });
-      if(week||i===N-1)lab.push(LABELS[i]);
-    }
-    const p=PRICE[N-1];
-    document.getElementById('bttab').innerHTML='<tr><th>Strategy</th><th>Invested</th><th>BTC held</th><th>Cash</th><th>Value</th><th>Value / invested</th><th>Avg buy price</th></tr>'+res.map(r=>{
-      const v=r.btc*p+r.cash;
-      return `<tr><td><span class="dot" style="background:${r.color}"></span>${r.name}</td><td>${fmt(r.inv)}</td><td>${r.btc.toFixed(4)}</td><td>${fmt(r.cash)}</td><td>${fmt(v)}</td><td style="color:${r.color}">×${(v/r.inv).toFixed(2)}</td><td>${fmt(r.inv/r.bought)}</td></tr>`;}).join('');
-    btC.data.labels=lab;btC.data.datasets=res.map(r=>({label:r.name,data:r.vals,borderColor:r.color,borderWidth:1.5,pointRadius:0,tension:0}));btC.update();
-  }
-  document.querySelectorAll('#btstart button').forEach(b=>b.addEventListener('click',()=>backtest(+b.dataset.y)));
-  backtest(2019);
-}
-render();
-
-</script>
 </body>
 </html>
